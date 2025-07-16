@@ -10,7 +10,7 @@ pg.mixer.init()
 # Game settings
 WIDTH, HEIGHT = 800, 600
 FPS = 60
-BASE_SPEED = 5
+BASE_SPEED = 10
 
 # Colors
 BLACK = (10, 10, 10)
@@ -27,145 +27,100 @@ SHOULDER_COLOR = (70, 70, 75)
 
 # Music setup
 def load_music():
-    music_folder = "music"
+    music_folder = "music"  # Folder where music files are stored
     try:
+        # Check if music folder exists, create if not
         if not os.path.exists(music_folder):
             os.makedirs(music_folder)
             print(f"Created '{music_folder}' folder. Please add your music files there.")
             return None
         
+        # Get all music files from the folder
         music_files = [f for f in os.listdir(music_folder) if f.endswith(('.mp3', '.wav', '.ogg'))]
         
         if not music_files:
             print(f"No music files found in '{music_folder}' folder.")
             return None
             
+        # Select a random music file
         selected_music = os.path.join(music_folder, random.choice(music_files))
         pg.mixer.music.load(selected_music)
-        pg.mixer.music.set_volume(0.5)
+        pg.mixer.music.set_volume(0.5)  # Set volume to 50%
         return selected_music
     except Exception as e:
         print(f"Error loading music: {e}")
         return None
 
-# Enhanced car class with better collision bounds and lane system
+# Enhanced car class with better styling and windows for all cars
 class Car:
     def __init__(self, x, y, color, player=False):
-        self.width = 45
-        self.height = 80 if player else random.choice([75, 80, 85])
+        self.width = 50
+        self.height = 90 if player else random.choice([80, 85, 90, 95])
         self.x = x
         self.y = y
-        self.speed = BASE_SPEED if player else random.randint(2, 4)  # Slower enemy cars
-        self.original_speed = self.speed  # Store original speed for recovery
+        self.speed = BASE_SPEED if player else random.randint(6, 10)
         self.color = color
         self.player = player
         self.window_color = CYAN if player else WHITE
         self.type = "player" if player else random.choice(["sedan", "truck", "suv"])
-        
-        # Better road boundaries with lanes
-        self.road_left = 175
-        self.road_right = WIDTH - 225
-        self.lane_width = (self.road_right - self.road_left) // 3
-        
-    def get_rect(self):
-        """Return collision rectangle for proper collision detection"""
-        return pg.Rect(self.x, self.y, self.width, self.height)
-        
-    def get_lane(self):
-        """Get current lane (0, 1, or 2)"""
-        center_x = self.x + self.width // 2
-        relative_pos = center_x - self.road_left
-        return max(0, min(2, int(relative_pos // self.lane_width)))
+        self.road_boundary_left = 150
+        self.road_boundary_right = WIDTH - 200
         
     def draw(self, screen):
         # Car body with subtle shading
         pg.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
         pg.draw.rect(screen, (min(self.color[0]+20, 255), min(self.color[1]+20, 255), 
-                             min(self.color[2]+20, 255)), (self.x+2, self.y+2, self.width-4, 8))
+                             min(self.color[2]+20, 255)), (self.x+2, self.y+2, self.width-4, 10))
         
-        # Windows based on car type
+        # Windows for all cars (not just player)
         if self.type == "sedan":
-            pg.draw.rect(screen, self.window_color, (self.x + 4, self.y + 8, self.width - 8, 20))
-            pg.draw.rect(screen, self.window_color, (self.x + 4, self.y + 32, self.width - 8, 20))
-            pg.draw.rect(screen, BLACK, (self.x + 4, self.y + 8, self.width - 8, 20), 1)
-            pg.draw.rect(screen, BLACK, (self.x + 4, self.y + 32, self.width - 8, 20), 1)
-        elif self.type == "truck":
-            pg.draw.rect(screen, self.window_color, (self.x + 8, self.y + 8, 25, 18))
-            pg.draw.rect(screen, BLACK, (self.x + 8, self.y + 8, 25, 18), 1)
-        else:  # SUV
-            pg.draw.rect(screen, self.window_color, (self.x + 4, self.y + 8, self.width - 8, 35))
-            pg.draw.rect(screen, BLACK, (self.x + 4, self.y + 8, self.width - 8, 35), 1)
+            # Front and rear windows
+            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 25))
+            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 40, self.width - 10, 25))
+            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 25), 1)
+            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 40, self.width - 10, 25), 1)
             
-        # Wheels
+        elif self.type == "truck":
+            # Cab window and side windows
+            pg.draw.rect(screen, self.window_color, (self.x + 10, self.y - 15, 30, 10))
+            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 25))
+            pg.draw.rect(screen, BLACK, (self.x + 10, self.y - 15, 30, 10), 1)
+            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 25), 1)
+            
+        else:  # SUV
+            # Large windows
+            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 40))
+            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 40), 1)
+            
+        # Wheels with better design
         wheel_color = (20, 20, 20)
         rim_color = (80, 80, 80)
-        wheel_positions = [(4, 5), (self.width-16, 5), (4, self.height-17), (self.width-16, self.height-17)]
-        for wheel_pos in wheel_positions:
-            pg.draw.ellipse(screen, wheel_color, (self.x + wheel_pos[0], self.y + wheel_pos[1], 12, 12))
-            pg.draw.ellipse(screen, rim_color, (self.x + wheel_pos[0]+2, self.y + wheel_pos[1]+2, 8, 8))
+        for wheel_pos in [(5, self.height-15), (self.width-20, self.height-15), (5, 0), (self.width-20, 0)]:
+            pg.draw.ellipse(screen, wheel_color, (self.x + wheel_pos[0], self.y + wheel_pos[1], 15, 15))
+            pg.draw.ellipse(screen, rim_color, (self.x + wheel_pos[0]+3, self.y + wheel_pos[1]+3, 9, 9))
         
-    def move(self, direction=None, obstacles=None, player_car=None):
+    def move(self, direction=None):
         if self.player:
             if direction == "left":
-                new_x = max(self.road_left, self.x - self.speed)
-                self.x = new_x
-            elif direction == "right":
-                new_x = min(self.road_right - self.width, self.x + self.speed)
-                self.x = new_x
+                self.x = max(self.road_boundary_left, self.x - self.speed)
+            if direction == "right":
+                self.x = min(self.road_boundary_right, self.x + self.speed)
         else:
-            # For enemy cars, check collision with other cars before moving
-            original_y = self.y
-            new_y = self.y + self.speed
-            
-            # Create temporary rect for collision testing
-            temp_rect = pg.Rect(self.x, new_y, self.width, self.height)
-            can_move = True
-            
-            # Check collision with other enemy cars
-            if obstacles:
-                for other_car in obstacles:
-                    if other_car != self:
-                        other_rect = other_car.get_rect()
-                        if temp_rect.colliderect(other_rect):
-                            # Calculate safe distance (car height + buffer)
-                            safe_distance = self.height + 15
-                            
-                            if new_y + self.height > other_car.y:  # This car is behind/overlapping
-                                # Position this car safely behind the other car
-                                self.y = max(original_y, other_car.y - safe_distance)
-                                # Slow down when following
-                                self.speed = max(1, min(self.speed, other_car.speed - 0.5))
-                                can_move = False
-                            break
-            
-            # Check collision with player car
-            if player_car and can_move:
-                player_rect = player_car.get_rect()
-                if temp_rect.colliderect(player_rect):
-                    # Don't move into player, but don't slow down dramatically
-                    can_move = False
-            
-            # Only move if safe
-            if can_move:
-                self.y = new_y
-                # Gradually return to normal speed when not blocked
-                if self.speed < self.original_speed:
-                    self.speed = min(self.original_speed, self.speed + 0.1)
-            
-            return self.y > HEIGHT + 50  # Give some buffer before removal
+            self.y += self.speed
+            return self.y > HEIGHT
 
-# Enhanced Road class
+# Enhanced Road class with white markings
 class Road:
     def __init__(self):
-        self.road_width = 450
+        self.road_width = 500
         self.road_x = (WIDTH - self.road_width) // 2
         self.stripes = []
-        for i in range(12):
+        for i in range(10):
             self.stripes.append({
-                'y': i * 100 - 200,
-                'width': 50,
-                'height': 30,
-                'speed': BASE_SPEED + 1
+                'y': i * 120 - 100,
+                'width': 60,
+                'height': 20,
+                'speed': BASE_SPEED + 2
             })
             
     def draw(self, screen):
@@ -173,28 +128,33 @@ class Road:
         pg.draw.rect(screen, SHOULDER_COLOR, (0, 0, self.road_x, HEIGHT))
         pg.draw.rect(screen, SHOULDER_COLOR, (self.road_x + self.road_width, 0, WIDTH, HEIGHT))
         
-        # Road surface
+        # Road surface with texture
         pg.draw.rect(screen, ROAD_COLOR, (self.road_x, 0, self.road_width, HEIGHT))
+        for i in range(0, HEIGHT, 4):
+            brightness = random.randint(-5, 5)
+            shade = (ROAD_COLOR[0]+brightness, ROAD_COLOR[1]+brightness, ROAD_COLOR[2]+brightness)
+            pg.draw.line(screen, shade, (self.road_x, i), (self.road_x + self.road_width, i), 1)
         
-        # Lane dividers (dashed lines)
-        lane_width = self.road_width // 3
-        for lane in range(1, 3):  # Draw 2 lane dividers
-            lane_x = self.road_x + lane * lane_width
-            for stripe in self.stripes:
-                if stripe['y'] > -50 and stripe['y'] < HEIGHT:
-                    pg.draw.rect(screen, WHITE, (lane_x - 25, stripe['y'], 50, stripe['height']))
+        # Road stripes with white color instead of yellow
+        for stripe in self.stripes:
+            pg.draw.rect(screen, WHITE, (WIDTH//2 - stripe['width']//2, stripe['y'], stripe['width'], stripe['height']))
+            # Reflection
+            if stripe['y'] % 240 < 120:
+                reflect = pg.Surface((stripe['width'], stripe['height']//3), pg.SRCALPHA)
+                reflect.fill((255, 255, 255, 30))
+                screen.blit(reflect, (WIDTH//2 - stripe['width']//2, stripe['y']))
         
         # Road edges
-        pg.draw.line(screen, WHITE, (self.road_x, 0), (self.road_x, HEIGHT), 3)
-        pg.draw.line(screen, WHITE, (self.road_x + self.road_width, 0), (self.road_x + self.road_width, HEIGHT), 3)
+        pg.draw.line(screen, WHITE, (self.road_x, 0), (self.road_x, HEIGHT), 2)
+        pg.draw.line(screen, WHITE, (self.road_x + self.road_width, 0), (self.road_x + self.road_width, HEIGHT), 2)
             
     def update(self):
         for stripe in self.stripes:
             stripe['y'] += stripe['speed']
             if stripe['y'] > HEIGHT:
-                stripe['y'] = -stripe['height'] - 50
+                stripe['y'] = -stripe['height']
 
-# Game class with improved logic
+# Game class
 class Game:
     def __init__(self):
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -202,7 +162,7 @@ class Game:
         self.clock = pg.time.Clock()
         self.font = pg.font.Font(None, 42)
         self.small_font = pg.font.Font(None, 28)
-        self.player = Car(WIDTH // 2 - 22, HEIGHT - 120, BLUE, True)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, BLUE, True)
         self.obstacles = []
         self.road = Road()
         self.score = 0
@@ -210,64 +170,14 @@ class Game:
         self.game_over = False
         self.in_menu = True
         self.last_obstacle_time = 0
-        self.obstacle_frequency = 2000  # Increased spawn time
+        self.obstacle_frequency = 1200
         self.play_button = Button(WIDTH//2 - 100, HEIGHT//2, 200, 60, "START RACE")
-        self.min_obstacle_distance = 120  # Minimum distance between obstacles
+        self.clock_speed = 1.2
         
         # Load and play music
         self.current_music = load_music()
         if self.current_music:
-            pg.mixer.music.play(-1)
-            
-    def can_spawn_obstacle(self, new_x, new_y):
-        """Check if we can spawn an obstacle at the given position"""
-        new_rect = pg.Rect(new_x, new_y, 45, 80)
-        
-        # Check distance from existing obstacles
-        for obstacle in self.obstacles:
-            obstacle_rect = obstacle.get_rect()
-            # Check if too close vertically (increased distance for better spacing)
-            if abs(new_y - obstacle.y) < self.min_obstacle_distance:
-                # Check if in same or adjacent lane
-                new_lane = self.get_lane_from_x(new_x)
-                obstacle_lane = obstacle.get_lane()
-                if abs(new_lane - obstacle_lane) <= 1:
-                    return False
-                    
-            # Also check if directly overlapping
-            if new_rect.colliderect(obstacle_rect):
-                return False
-        
-        return True
-    
-    def get_lane_from_x(self, x):
-        """Get lane number from x position"""
-        road_left = 175
-        road_right = WIDTH - 225
-        lane_width = (road_right - road_left) // 3
-        center_x = x + 22  # Half car width
-        relative_pos = center_x - road_left
-        return max(0, min(2, int(relative_pos // lane_width)))
-    
-    def get_safe_spawn_position(self):
-        """Find a safe position to spawn a new obstacle"""
-        road_left = 175
-        road_right = WIDTH - 225
-        lane_width = (road_right - road_left) // 3
-        
-        # Try each lane
-        lanes = [0, 1, 2]
-        random.shuffle(lanes)
-        
-        for lane in lanes:
-            lane_center = road_left + lane * lane_width + lane_width // 2
-            spawn_x = lane_center - 22  # Half car width
-            spawn_y = -100
-            
-            if self.can_spawn_obstacle(spawn_x, spawn_y):
-                return spawn_x, spawn_y
-        
-        return None, None
+            pg.mixer.music.play(-1)  # -1 means loop indefinitely
             
     def handle_events(self):
         for event in pg.event.get():
@@ -295,62 +205,51 @@ class Game:
         if keys[pg.K_RIGHT]:
             self.player.move("right")
             
-        # Spawn obstacles with better logic
+        # Spawn obstacles
         current_time = pg.time.get_ticks()
-        if current_time - self.last_obstacle_time > self.obstacle_frequency:
-            spawn_x, spawn_y = self.get_safe_spawn_position()
+        if current_time - self.last_obstacle_time > self.obstacle_frequency / self.clock_speed:
+            color = random.choice([
+                (220, 60, 60),   # Red
+                (60, 180, 60),    # Green
+                (220, 140, 60),    # Orange
+                (180, 60, 180)     # Purple
+            ])
+            new_obstacle = Car(
+                random.randint(self.player.road_boundary_left, self.player.road_boundary_right),
+                -150,
+                color
+            )
+            new_obstacle.speed = random.randint(8, 12)
+            self.obstacles.append(new_obstacle)
+            self.last_obstacle_time = current_time
             
-            if spawn_x is not None:
-                color = random.choice([
-                    (220, 60, 60),   # Red
-                    (60, 180, 60),   # Green
-                    (220, 140, 60),  # Orange
-                    (180, 60, 180),  # Purple
-                    (60, 60, 220)    # Blue
-                ])
+            # Increase difficulty
+            if self.score > 0 and self.score % 3 == 0:
+                self.obstacle_frequency = max(600, self.obstacle_frequency - 100)
+                self.level += 1
+                self.clock_speed = min(2.5, self.clock_speed + 0.15)
                 
-                new_obstacle = Car(spawn_x, spawn_y, color)
-                new_obstacle.speed = random.randint(2, 4)  # Slower than player
-                new_obstacle.original_speed = new_obstacle.speed
-                self.obstacles.append(new_obstacle)
-                self.last_obstacle_time = current_time
-                
-                # Gradually increase difficulty
-                if self.score > 0 and self.score % 5 == 0:
-                    self.obstacle_frequency = max(800, self.obstacle_frequency - 50)
-                    self.level = (self.score // 5) + 1
-                    self.min_obstacle_distance = max(100, self.min_obstacle_distance - 5)
-                
-        # Move obstacles and remove off-screen ones
+        # Move obstacles
         for obstacle in self.obstacles[:]:
-            if obstacle.move(obstacles=self.obstacles, player_car=self.player):
+            if obstacle.move():
                 self.obstacles.remove(obstacle)
                 self.score += 1
                 
-            # Improved collision detection
-            player_rect = self.player.get_rect()
-            obstacle_rect = obstacle.get_rect()
-            
-            # Add small buffer to make collision feel more fair
-            buffer = 3
-            collision_rect = pg.Rect(
-                player_rect.x + buffer,
-                player_rect.y + buffer,
-                player_rect.width - 2 * buffer,
-                player_rect.height - 2 * buffer
-            )
-            
-            if collision_rect.colliderect(obstacle_rect):
+            # Collision detection
+            if (self.player.x < obstacle.x + obstacle.width and
+                self.player.x + self.player.width > obstacle.x and
+                self.player.y < obstacle.y + obstacle.height and
+                self.player.y + self.player.height > obstacle.y):
                 self.game_over = True
                 if self.current_music:
-                    pg.mixer.music.fadeout(2000)
+                    pg.mixer.music.fadeout(2000)  # Fade out music over 2 seconds when game over
         
         self.road.update()
         
     def draw(self):
         # Gradient background
         for y in range(HEIGHT):
-            shade = 10 + int(15 * (y / HEIGHT))
+            shade = 10 + int(10 * (y / HEIGHT))
             pg.draw.line(self.screen, (shade, shade, shade), (0, y), (WIDTH, y))
         
         if self.in_menu:
@@ -375,21 +274,24 @@ class Game:
         else:
             self.road.draw(self.screen)
             
-            # Draw all cars
-            all_cars = [self.player] + self.obstacles
-            for car in all_cars:
+            # Draw all cars with shadow effect
+            for car in [self.player] + self.obstacles:
+                # Shadow
+                shadow = pg.Surface((car.width, car.height//3), pg.SRCALPHA)
+                shadow.fill((0, 0, 0, 80))
+                self.screen.blit(shadow, (car.x, car.y + car.height - 10))
                 car.draw(self.screen)
                 
-            # HUD
-            hud_bg = pg.Surface((280, 120), pg.SRCALPHA)
+            # HUD with glass effect
+            hud_bg = pg.Surface((250, 110), pg.SRCALPHA)
             hud_bg.fill((0, 0, 0, 150))
-            pg.draw.rect(hud_bg, (255, 255, 255, 30), (0, 0, 280, 120), 2, border_radius=5)
+            pg.draw.rect(hud_bg, (255, 255, 255, 30), (0, 0, 250, 110), 2, border_radius=5)
             self.screen.blit(hud_bg, (10, 10))
             
             texts = [
                 f"Score: {self.score}",
                 f"Level: {self.level}",
-                f"Cars on road: {len(self.obstacles)}"
+                f"Speed: {int(self.clock_speed*100)}%"
             ]
             
             for i, text in enumerate(texts):
@@ -436,15 +338,15 @@ class Game:
         
     def reset_game(self):
         self.save_high_score()
-        self.player = Car(WIDTH // 2 - 22, HEIGHT - 120, BLUE, True)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, BLUE, True)
         self.obstacles = []
         self.road = Road()
         self.score = 0
         self.level = 1
         self.game_over = False
         self.last_obstacle_time = pg.time.get_ticks()
-        self.obstacle_frequency = 2000
-        self.min_obstacle_distance = 120
+        self.obstacle_frequency = 1200
+        self.clock_speed = 1.2
         
         # Restart music if it was playing before
         if self.current_music:
