@@ -1,11 +1,3 @@
-# 🏎️ Atari Speed Racer | Pygame Racing Game
-
-![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/d235867f88bc9c60832d08a85d7d9e5103d33f9b/screenshots/start.jpg)
-
-A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
-
----
-
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Stars" />
   <img src="https://img.shields.io/github/forks/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Forks" />
@@ -14,6 +6,14 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!have fun
   <img src="https://img.shields.io/github/issues/VIDAKHOSHPEY22/Racing-car-game" alt="Open Issues" />
   <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game" alt="License" />
 </p>
+
+---
+
+# 🏎️ Atari Speed Racer | Pygame Racing Game
+
+![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/d235867f88bc9c60832d08a85d7d9e5103d33f9b/screenshots/start.jpg)
+
+A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
 
 ---
 
