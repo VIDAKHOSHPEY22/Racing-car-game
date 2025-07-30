@@ -2,7 +2,7 @@
 
 ![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/d235867f88bc9c60832d08a85d7d9e5103d33f9b/screenshots/start.jpg)
 
-A thrilling 2D racing experience where you dodge traffic at high speeds!
+A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
 
 ## 🚦 Quick Start
 
