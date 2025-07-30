@@ -4,6 +4,19 @@
 
 A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
 
+---
+
+<p align="center">
+  <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Stars" />
+  <img src="https://img.shields.io/github/forks/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Forks" />
+  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game" alt="Last Commit" />
+  <img src="https://img.shields.io/github/languages/top/VIDAKHOSHPEY22/Racing-car-game" alt="Top Language" />
+  <img src="https://img.shields.io/github/issues/VIDAKHOSHPEY22/Racing-car-game" alt="Open Issues" />
+  <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game" alt="License" />
+</p>
+
+---
+
 ## 🚦 Quick Start
 
 ```bash
