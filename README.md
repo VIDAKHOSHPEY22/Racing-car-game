@@ -1,3 +1,4 @@
+<!--hey guys I will be glad if you fix this code for fun-->
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Stars" />
   <img src="https://img.shields.io/github/forks/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Forks" />
