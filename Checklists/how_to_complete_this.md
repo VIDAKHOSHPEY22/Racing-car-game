@@ -9,3 +9,7 @@
 - [ ] add more songs
 
 - [ ] Adding obstacles
+
+- [x] add speed
+
+- [ ] g
