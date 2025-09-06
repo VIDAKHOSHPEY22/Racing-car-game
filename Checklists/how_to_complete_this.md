@@ -4,4 +4,8 @@
 
 - [ ] Improve appearance
 
+- [ ] Being a game standard
+
+- [ ] add more songs
+
 - [ ] 
