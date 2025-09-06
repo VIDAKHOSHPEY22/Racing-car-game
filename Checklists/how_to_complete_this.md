@@ -22,4 +22,4 @@
 
 - so keep going
 - work with this pytorch
-- 
+- don't forget to email me 🙂 
