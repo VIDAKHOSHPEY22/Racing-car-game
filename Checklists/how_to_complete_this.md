@@ -20,4 +20,6 @@
 
 ## it's good for you that you are beginners or love python 💪🏻💕
 
-- so keep going 
+- so keep going
+- work with this pytorch
+- 
