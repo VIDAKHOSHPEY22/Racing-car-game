@@ -12,4 +12,6 @@
 
 - [x] add speed
 
-- [ ] g
+- [x] add simple appearance
+
+- [ ] gh
