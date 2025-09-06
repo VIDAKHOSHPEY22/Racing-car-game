@@ -14,4 +14,4 @@
 
 - [x] add simple appearance
 
-- [ ] gh
+- [ ] turn it into live demo 
