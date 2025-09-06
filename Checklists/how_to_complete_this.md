@@ -8,4 +8,4 @@
 
 - [ ] add more songs
 
-- [ ] 
+- [ ] Adding obstacles
