@@ -1,3 +1,3 @@
 ## how to complete this ?
 
-- [ ] first I have a bug 
+- [ ] first I have a bug for passing cars 
