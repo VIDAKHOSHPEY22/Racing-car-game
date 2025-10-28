@@ -10,7 +10,7 @@
 
 ---
 
-# 🏎️ Atari Speed Racer | Pygame Racing Game
+# 🏎️ Atari Speed Racer | Pygame Racing Game.
 
 ![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/d235867f88bc9c60832d08a85d7d9e5103d33f9b/screenshots/start.jpg)
 
