@@ -1,4 +1,4 @@
-<!--hey guys i will be glad if you fix it it will be fun -->
+<!--heyguys i will be glad if you fix it it will be fun -->
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Stars" />
