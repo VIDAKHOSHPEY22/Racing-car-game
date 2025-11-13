@@ -31,6 +31,7 @@ python atari.py
 - 📈 Progressive difficulty system
 - 🏆 Persistent high score tracking
 - ⚡ Smooth 60FPS gameplay
+- 🚦3-2-1-GO! countdown before each race
 
 ## 📋 Requirements
 
@@ -47,6 +48,7 @@ pip install requirement.txt
 | ←   | Move Left |
 | →   | Move Right |
 | R   | Restart Game |
+| Q   | Quit Game |
 
 ## 📁 Project Structure
 ```
