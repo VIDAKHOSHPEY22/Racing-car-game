@@ -1,0 +1,942 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<!-- Font Awesome CDN -->
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+<!-- Custom Page Styles -->
+<link rel="stylesheet" href="{% static 'lessons/css/paypal_payment.css' %}?v=20251128" />
+
+<div class="payment-container">
+  <div class="payment-card">
+
+    <!-- Header with gradient background -->
+    <div class="payment-header">
+      <div class="header-icon">
+        <i class="fas fa-lock"></i>
+      </div>
+      <h2>Complete Your Payment</h2>
+      <p>Secure checkout powered by PayPal</p>
+      <div class="progress-steps">
+        <div class="step active">
+          <span class="step-number">1</span>
+          <span class="step-text">Booking</span>
+        </div>
+        <div class="step active">
+          <span class="step-number">2</span>
+          <span class="step-text">Payment</span>
+        </div>
+        <div class="step">
+          <span class="step-number">3</span>
+          <span class="step-text">Confirmation</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Message -->
+    <div class="payment-alert success" id="success-alert" style="display: none;">
+      <div class="alert-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="alert-content">
+        <h4>Payment Successful!</h4>
+        <p>Your booking has been confirmed. Redirecting to dashboard...</p>
+      </div>
+      <div class="alert-progress">
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Message -->
+    <div class="payment-alert processing" id="processing-alert" style="display: none;">
+      <div class="alert-icon">
+        <i class="fas fa-spinner fa-spin"></i>
+      </div>
+      <div class="alert-content">
+        <h4>Processing Payment...</h4>
+        <p>Please do not close or refresh this page.</p>
+      </div>
+    </div>
+
+    <!-- Booking Summary -->
+    <div class="booking-summary">
+      <div class="summary-header">
+        <i class="fas fa-receipt"></i>
+        <h3>Booking Summary</h3>
+      </div>
+      
+      <div class="summary-grid">
+        <div class="summary-row">
+          <div class="summary-item">
+            <span class="item-label">Package:</span>
+            <span class="item-value">{{ package.name }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="item-label">Date:</span>
+            <span class="item-value">{{ pending_booking.date }}</span>
+          </div>
+        </div>
+
+        <div class="summary-row">
+          <div class="summary-item">
+            <span class="item-label">Time:</span>
+            <span class="item-value">{{ pending_booking.time }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="item-label">Base Price:</span>
+            <span class="item-value">${{ package.price|floatformat:2 }}</span>
+          </div>
+        </div>
+
+        <div class="summary-row">
+          <div class="summary-item">
+            <span class="item-label">Extra Guests ({{ pending_booking.extra_guests }}):</span>
+            <span class="item-value">
+              {% if pending_booking.extra_guests > 0 %}
+                ${{ pending_booking.extra_guest_fee|floatformat:2 }}
+              {% else %}
+                $0.00
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="summary-divider"></div>
+
+        <div class="summary-row total-row">
+          <div class="summary-item">
+            <span class="item-label">Total Amount:</span>
+            <span class="item-value total-price">${{ pending_booking.total_price|floatformat:2 }}</span>
+          </div>
+        </div>
+
+        <div class="status-container">
+          <div class="status-badge pending" id="status-badge">
+            <i class="fas fa-clock"></i>
+            <span>Pending Payment</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PayPal Button Container -->
+    <div class="payment-section">
+      <div class="section-header">
+        <h4><i class="fab fa-paypal"></i> PayPal Checkout</h4>
+        <p>Pay securely with your PayPal account</p>
+      </div>
+      <div id="paypal-button-container" class="paypal-button-wrapper"></div>
+    </div>
+
+    <!-- Security & Support -->
+    <div class="security-section">
+      <div class="security-features">
+        <div class="security-item">
+          <i class="fas fa-shield-alt"></i>
+          <span>256-bit SSL Encryption</span>
+        </div>
+        <div class="security-item">
+          <i class="fas fa-lock"></i>
+          <span>Secure Payment</span>
+        </div>
+        <div class="security-item">
+          <i class="fas fa-user-shield"></i>
+          <span>Privacy Protected</span>
+        </div>
+      </div>
+      
+      <div class="support-note">
+        <i class="fas fa-life-ring"></i>
+        <div>
+          <strong>Need help?</strong>
+          <p>Contact us at <a href="mailto:rdl.firearms@gmail.com">rdl.firearms@gmail.com</a></p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PayPal SDK -->
+<script src="https://www.paypal.com/sdk/js?client-id={{ PAYPAL_CLIENT_ID }}&currency=USD&intent=capture&components=buttons" async></script>
+
+<script>
+// Global variables for popup management
+let paypalPopup = null;
+let popupCheckInterval = null;
+let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+// flag to signal we prefer redirect mode for this click
+window.paypalUseRedirect = false;
+
+// Function to handle popup blocking and mobile navigation
+function handlePopupWindow(popup) {
+    if (!popup || popup.closed || popup.closed === undefined) {
+        // Popup was blocked or closed immediately
+        if (isMobile) {
+            // On mobile, redirect to a fallback page or show instructions
+            showMobilePopupInstructions();
+        } else {
+            alert("Popup window was blocked. Please allow popups for this site to complete your payment.");
+        }
+        return false;
+    }
+    
+    // If we decided to use redirect mode, don't track popup
+    if (window.paypalUseRedirect) {
+        // we won't monitor popup because redirect mode shouldn't open one
+        return true;
+    }
+
+    paypalPopup = popup;
+    
+    // Monitor the popup
+    popupCheckInterval = setInterval(function() {
+        if (paypalPopup.closed) {
+            clearInterval(popupCheckInterval);
+            paypalPopup = null;
+            
+            // If popup closed without completion, check if we need to go back on mobile
+            if (isMobile && !window.paymentCompleted) {
+                handleMobileBackNavigation();
+            }
+        }
+    }, 500);
+    
+    return true;
+}
+
+// Show instructions for mobile users
+function showMobilePopupInstructions() {
+    const instructions = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 20px; border-radius: 10px; max-width: 90%; text-align: center;">
+                <h3>PayPal Payment</h3>
+                <p>To complete your payment, you'll be redirected to PayPal. After payment, you'll return here automatically.</p>
+                <button onclick="closeInstructions()" style="background: #0070ba; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px;">
+                    Continue to PayPal
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', instructions);
+}
+
+function closeInstructions() {
+    const overlay = document.querySelector('[style*="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8)"]');
+    if (overlay) {
+        overlay.remove();
+    }
+}
+
+// Handle mobile back navigation when popup closes
+function handleMobileBackNavigation() {
+    if (isMobile && window.history.length > 1 && !window.paymentCompleted) {
+        // Only go back if we're not on the main payment page and payment isn't completed
+        setTimeout(() => {
+            if (!window.paymentCompleted) {
+                window.history.back();
+            }
+        }, 1000);
+    }
+}
+
+// Prevent back navigation during payment process
+function setupNavigationGuards() {
+    // Set a flag when payment starts
+    window.paymentStarted = false;
+    window.paymentCompleted = false;
+    
+    // Add beforeunload handler
+    window.addEventListener('beforeunload', function(e) {
+        if (window.paymentStarted && !window.paymentCompleted) {
+            e.preventDefault();
+            e.returnValue = 'Your payment is in progress. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+    
+    // Handle page visibility changes (for mobile)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden && window.paymentStarted && !window.paymentCompleted) {
+            // Page is hidden (user switched tabs/apps) - payment might be in progress
+            console.log('Payment page hidden - payment might be in progress');
+        }
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    setupNavigationGuards();
+
+    if (typeof paypal === 'undefined') {
+        alert("PayPal SDK failed to load. Please check your internet connection.");
+        return;
+    }
+
+    paypal.Buttons({
+        style: {
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'paypal',
+            height: 48,
+            tagline: false
+        },
+
+        // Create Order - 100% Fixed: No quantity 0 error
+        createOrder: function(data, actions) {
+            const basePrice       = parseFloat("{{ package.price }}") || 0;
+            const extraGuests     = parseInt("{{ pending_booking.extra_guests }}", 10) || 0;
+            const extraGuestFee   = parseFloat("{{ pending_booking.extra_guest_fee }}") || 0;
+            const totalPrice      = parseFloat("{{ pending_booking.total_price }}") || 0;
+
+            const items = [];
+
+            // Main Package (always included)
+            items.push({
+                name: "{{ package.name|truncatechars:120 }}",
+                description: "Firearms Training Package",
+                quantity: "1",
+                unit_amount: {
+                    currency_code: "USD",
+                    value: basePrice.toFixed(2)
+                }
+            });
+
+            // Extra Guests - Only if greater than 0
+            if (extraGuests > 0) {
+                items.push({
+                    name: `Extra Guest × ${extraGuests}`,
+                    description: `${extraGuests} additional guest(s)`,
+                    quantity: extraGuests.toString(),
+                    unit_amount: {
+                        currency_code: "USD",
+                        value: (extraGuestFee / extraGuests || 25).toFixed(2)
+                    }
+                });
+            }
+
+            const itemTotal = basePrice + (extraGuests > 0 ? extraGuestFee : 0);
+
+            return actions.order.create({
+                purchase_units: [{
+                    amount: {
+                        currency_code: "USD",
+                        value: totalPrice.toFixed(2),
+                        breakdown: {
+                            item_total: {
+                                currency_code: "USD",
+                                value: itemTotal.toFixed(2)
+                            }
+                        }
+                    },
+                    description: `Booking: {{ package.name }} on {{ pending_booking.date }}`,
+                    custom_id: `booking_{{ pending_booking.id }}`,
+                    invoice_id: `INV-{{ pending_booking.id }}-{% now "U" %}`,
+                    items: items
+                }]
+            });
+        },
+
+        // On Approve - Capture Payment
+        onApprove: function(data, actions) {
+            window.paymentStarted = true;
+            document.getElementById("processing-alert").style.display = "flex";
+
+            return actions.order.capture().then(function(details) {
+                return fetch("/payment/confirm/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify({
+                        orderID: data.orderID,
+                        payerID: details.payer?.payer_id || null,
+                        paymentDetails: details
+                    })
+                });
+            })
+            .then(response => response.json())
+            .then(result => {
+                document.getElementById("processing-alert").style.display = "none";
+
+                if (result.success) {
+                    window.paymentCompleted = true;
+                    document.getElementById("success-alert").style.display = "flex";
+                    document.getElementById("status-badge").innerHTML = '<i class="fas fa-check-circle"></i><span>Confirmed</span>';
+                    document.getElementById("status-badge").className = "status-badge confirmed";
+
+                    // Close any open popup
+                    if (paypalPopup && !paypalPopup.closed) {
+                        paypalPopup.close();
+                    }
+
+                    // Animate progress bar
+                    const progressFill = document.querySelector('.progress-fill');
+                    if (progressFill) {
+                        progressFill.style.animation = 'progressFill 3s linear forwards';
+                    }
+
+                    setTimeout(() => {
+                        window.location.href = "/dashboard/";
+                    }, 3000);
+                } else {
+                    throw new Error(result.message || "Booking confirmation failed");
+                }
+            })
+            .catch(err => {
+                document.getElementById("processing-alert").style.display = "none";
+                console.error("Confirmation error:", err);
+                alert("Payment completed but booking not confirmed. Contact support with Order ID: " + data.orderID);
+            });
+        },
+
+        // Error Handling
+        onError: function(err) {
+            console.error("PayPal Error:", err);
+            alert("An error occurred. Please try again or contact support.");
+        },
+
+        // User Cancelled
+        onCancel: function() {
+            if (isMobile) {
+                handleMobileBackNavigation();
+            }
+            alert("Payment cancelled. You can complete it later from your dashboard.");
+        },
+
+        // Handle popup opening
+        onClick: function(data, actions) {
+            // Prefer redirect mode to avoid about:blank popup bug
+            window.paymentStarted = true;
+
+            // mark that we will use redirect — this prevents popup monitor from treating an expected navigation as a blocked popup
+            window.paypalUseRedirect = true;
+
+            // if actions.redirect exists, force redirect mode (no popup)
+            if (actions && typeof actions.redirect === 'function') {
+                try {
+                    return actions.redirect();
+                } catch (e) {
+                    console.warn('PayPal redirect failed, falling back to popup. error:', e);
+                    // If redirect fails, allow normal popup flow (legacy)
+                    window.paypalUseRedirect = false;
+                }
+            }
+
+            // For mobile devices, prepare for potential redirect
+            if (isMobile) {
+                console.log("Mobile device detected - preparing for PayPal flow");
+            }
+        }
+
+    }).render("#paypal-button-container")
+    .catch(err => {
+        console.error("PayPal button render failed:", err);
+        alert("Failed to load PayPal button. Please refresh the page.");
+    });
+
+    // Enhanced popup handling for PayPal
+    const originalWindowOpen = window.open;
+    window.open = function(url, name, specs) {
+        const popup = originalWindowOpen.call(this, url, name, specs);
+        if (url && url.includes('paypal.com')) {
+            // only handle popup monitoring if we didn't request redirect mode
+            if (!window.paypalUseRedirect) {
+                handlePopupWindow(popup);
+            }
+        }
+        return popup;
+    };
+
+    // Handle page load for mobile return from PayPal
+    if (isMobile) {
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                // Page was loaded from cache (back/forward navigation)
+                if (window.paymentStarted && !window.paymentCompleted) {
+                    // Check if we returned from PayPal
+                    setTimeout(() => {
+                        // Refresh the page to check payment status
+                        window.location.reload();
+                    }, 1000);
+                }
+            }
+        });
+    }
+});
+</script>
+
+<!-- Modern Inline Styles -->
+<style>
+  :root {
+    --primary: #0070ba;
+    --primary-dark: #005ea6;
+    --success: #28a745;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --dark: #2d3748;
+    --light: #f8f9fa;
+    --gray: #6c757d;
+    --border: #e2e8f0;
+    --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    --gradient: linear-gradient(135deg, #0070ba 0%, #005ea6 100%);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  .payment-container {
+    max-width: 520px;
+    margin: 40px auto;
+    padding: 0 20px;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  .payment-card {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Header Styles */
+  .payment-header {
+    background: var(--gradient);
+    color: white;
+    padding: 40px 35px 30px;
+    text-align: center;
+    position: relative;
+  }
+
+  .payment-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00c6ff, #0072ff);
+  }
+
+  .header-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    backdrop-filter: blur(10px);
+  }
+
+  .header-icon i {
+    font-size: 2.5rem;
+    color: white;
+  }
+
+  .payment-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .payment-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1rem;
+  }
+
+  /* Progress Steps */
+  .progress-steps {
+    display: flex;
+    justify-content: center;
+    margin-top: 30px;
+    gap: 40px;
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .step.active .step-number {
+    background: white;
+    color: var(--primary);
+  }
+
+  .step-text {
+    font-size: 0.85rem;
+    opacity: 0.8;
+  }
+
+  /* Alert Styles */
+  .payment-alert {
+    display: none;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    margin: 20px;
+    border-radius: 12px;
+    font-weight: 500;
+    animation: slideIn 0.5s ease;
+    position: relative;
+  }
+
+  .alert-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .alert-content {
+    flex: 1;
+  }
+
+  .alert-content h4 {
+    margin: 0 0 4px 0;
+    font-size: 1.1rem;
+  }
+
+  .alert-content p {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 0.95rem;
+  }
+
+  .alert-progress {
+    width: 100px;
+    flex-shrink: 0;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: white;
+    width: 0%;
+  }
+
+  .success {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    border: 1px solid #c3e6cb;
+    color: #155724;
+  }
+
+  .processing {
+    background: linear-gradient(135deg, #cff4fc, #b6effb);
+    border: 1px solid #b6effb;
+    color: #055160;
+  }
+
+  /* Booking Summary */
+  .booking-summary {
+    padding: 30px;
+  }
+
+  .summary-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 25px;
+  }
+
+  .summary-header i {
+    font-size: 1.5rem;
+    color: var(--primary);
+  }
+
+  .summary-header h3 {
+    margin: 0;
+    color: var(--dark);
+    font-size: 1.4rem;
+    font-weight: 600;
+  }
+
+  .summary-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .summary-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .item-label {
+    font-size: 0.9rem;
+    color: var(--gray);
+    font-weight: 500;
+  }
+
+  .item-value {
+    font-size: 1rem;
+    color: var(--dark);
+    font-weight: 600;
+  }
+
+  .summary-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 10px 0;
+    grid-column: 1 / -1;
+  }
+
+  .total-row {
+    grid-template-columns: 1fr;
+  }
+
+  .total-row .item-value {
+    font-size: 2rem;
+    color: var(--success);
+    font-weight: 700;
+  }
+
+  .status-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .status-badge.pending {
+    background: #fff3cd;
+    color: #856404;
+  }
+
+  .status-badge.confirmed {
+    background: #d4edda;
+    color: #155724;
+  }
+
+  /* Payment Section */
+  .payment-section {
+    padding: 0 30px 30px;
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .section-header h4 {
+    margin: 0 0 8px 0;
+    color: var(--dark);
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .section-header p {
+    margin: 0;
+    color: var(--gray);
+    font-size: 0.95rem;
+  }
+
+  .section-header i {
+    color: var(--primary);
+  }
+
+  .paypal-button-wrapper {
+    margin: 0;
+  }
+
+  /* Security Section */
+  .security-section {
+    background: var(--light);
+    padding: 25px 30px;
+    border-top: 1px solid var(--border);
+  }
+
+  .security-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .security-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .security-item i {
+    font-size: 1.2rem;
+    color: var(--primary);
+  }
+
+  .security-item span {
+    font-size: 0.8rem;
+    color: var(--gray);
+    font-weight: 500;
+  }
+
+  .support-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .support-note i {
+    font-size: 1.3rem;
+    color: var(--primary);
+  }
+
+  .support-note div {
+    flex: 1;
+  }
+
+  .support-note strong {
+    display: block;
+    color: var(--dark);
+    font-size: 0.95rem;
+  }
+
+  .support-note p {
+    margin: 4px 0 0 0;
+    font-size: 0.9rem;
+    color: var(--gray);
+  }
+
+  .support-note a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .support-note a:hover {
+    text-decoration: underline;
+  }
+
+  /* Animations */
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes progressFill {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  /* Responsive Design */
+  @media (max-width: 480px) {
+    .payment-container {
+      margin: 20px auto;
+      padding: 0 15px;
+    }
+
+    .payment-header {
+      padding: 30px 25px 25px;
+    }
+
+    .payment-header h2 {
+      font-size: 1.7rem;
+    }
+
+    .progress-steps {
+      gap: 20px;
+    }
+
+    .summary-row {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .security-features {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .total-row .item-value {
+      font-size: 1.7rem;
+    }
+
+    .payment-alert {
+      margin: 15px;
+      padding: 15px;
+    }
+  }
+
+  /* Hover Effects */
+  .payment-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .payment-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Focus States */
+  button:focus, a:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+</style>
+
+{% endblock %}
