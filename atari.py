@@ -365,13 +365,43 @@ class Game:
         
         # -------------- Obstacles ----------------
         if current_time - self.last_obstacle_time > self.obstacle_frequency / self.clock_speed:
-            color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
-            new_obstacle = Car(random.randint(self.player.road_boundary_left, self.player.road_boundary_right), -150,
-                               color)
-            min_speed, max_speed = diff_settings["obstacle_speed"]
-            new_obstacle.speed = random.randint(min_speed, max_speed)
-            self.obstacles.append(new_obstacle)
-            self.last_obstacle_time = current_time
+            # Prevent cars from piling up - check for safe spawning position
+            min_spacing = 120  # Minimum vertical distance between cars
+            safe_to_spawn = True
+            
+            # Check if there's enough space at the top for a new obstacle
+            for existing_obstacle in self.obstacles:
+                # Check if any existing obstacle is too close to spawn point (y = -150)
+                if existing_obstacle.y > -150 - min_spacing and existing_obstacle.y < -150 + min_spacing:
+                    safe_to_spawn = False
+                    break
+            
+            if safe_to_spawn:
+                color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
+                
+                # Use lane-based spawning to prevent horizontal overlap
+                lane_width = (self.player.road_boundary_right - self.player.road_boundary_left) // 3
+                lane = random.randint(0, 2)
+                x_position = self.player.road_boundary_left + (lane * lane_width) + (lane_width // 2) - 25
+                x_position = max(self.player.road_boundary_left, min(self.player.road_boundary_right - 50, x_position))
+                
+                new_obstacle = Car(x_position, -150, color)
+                min_speed, max_speed = diff_settings["obstacle_speed"]
+                new_obstacle.speed = random.randint(min_speed, max_speed)
+                
+                # Final check: ensure no horizontal overlap with nearby obstacles
+                can_spawn = True
+                for existing_obstacle in self.obstacles:
+                    if existing_obstacle.y > -200 and existing_obstacle.y < -100:
+                        # Check horizontal overlap
+                        if (new_obstacle.x < existing_obstacle.x + existing_obstacle.width and
+                            new_obstacle.x + new_obstacle.width > existing_obstacle.x):
+                            can_spawn = False
+                            break
+                
+                if can_spawn:
+                    self.obstacles.append(new_obstacle)
+                    self.last_obstacle_time = current_time
             if self.score > 0 and self.score % 3 == 0:
                 self.obstacle_frequency = max(600, self.obstacle_frequency - 100)
                 self.level += 1
