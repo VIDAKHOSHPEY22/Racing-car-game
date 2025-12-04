@@ -1,19 +1,23 @@
 <!--hey guys   i will be glad if you fix it it will be fun -->
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Stars" />
-  <img src="https://img.shields.io/github/forks/VIDAKHOSHPEY22/Racing-car-game?style=social" alt="GitHub Forks" />
-  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game" alt="Last Commit" />
-  <img src="https://img.shields.io/github/languages/top/VIDAKHOSHPEY22/Racing-car-game" alt="Top Language" />
-  <img src="https://img.shields.io/github/issues/VIDAKHOSHPEY22/Racing-car-game" alt="Open Issues" />
-  <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game" alt="License" />
+  <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
+  <img src="https://img.shields.io/github/forks/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=4ecdc4" alt="Forks" />
+  <img src="https://img.shields.io/github/issues/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ffe66d" alt="Issues" />
+  <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=95e1d3" alt="License" />
+  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=a8e6cf" alt="Last Commit" />
 </p>
 
----
+<h1 align="center">Atari Speed Racer</h1>
+<h3 align="center">A fast-paced, addictive 2D endless racing game built with Pygame</h3>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/VIDAKHOSHPEY22/Racing-car-game/main/screenshots/gameplay-preview.gif" alt="Gameplay Preview" width="800"/>
+  <br>
 
 # 🏎️ Atari Speed Racer | Pygame Racing Game
 
-![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/d235867f88bc9c60832d08a85d7d9e5103d33f9b/screenshots/start.jpg)
+![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/start.jpg)
 
 A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
 
@@ -22,46 +26,74 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!have fun
 ## 🚦 Quick Start
 
 ```bash
+# Clone the repository
+git clone https://github.com/VIDAKHOSHPEY22/Racing-car-game.git
+cd Racing-car-game
+
+# Install dependencies
+pip install pygame==2.6.1
+
+# Run the game
 python atari.py
 ```
+---
+## ✨ Features
 
-## 🎮 Game Features
-- 🚗 Multiple car types with detailed designs
-- 🛣️ Dynamic road with white lane markings
-- 📈 Progressive difficulty system
-- 🏆 Persistent high score tracking
-- ⚡ Smooth 60FPS gameplay
+| Feature                    | Description                                                                 |
+|----------------------------|-----------------------------------------------------------------------------|
+| 🚗 **Multiple Car Skins**      | Choose from several cool skins – new ones added by the community!           |
+| ⏯️ **Pause / Resume**         | Press `P` anytime to pause and resume without losing your run               |
+| 🔄 **Instant Restart**         | Crash? Just hit `R` and get right back into the action                     |
+| 🎚️ **4 Difficulty Modes**     | Easy → Normal → Hard → Insane – speed and traffic increase dramatically    |
+| 🏆 **Enhanced Scoreboard**     | Beautiful new UI showing current score, multiplier, and all-time high score|
+| 🔊 **Sound & Music Toggle**    | Press `M` to turn sound effects and background music on/off                 |
+| ⚡ **Score Multiplier System**  | Survive longer → multiplier goes up → insane high scores possible!         |
+| 📈 **Progressive Speed**       | The longer you play, the faster everything gets                             |
+| 🛣️ **Dynamic Traffic**        | Randomly spawned enemy cars with realistic lane changes                     |
+| 💾 **Persistent High Score**   | Your best score is automatically saved                                      |
 
-## 📋 Requirements
+---
+## 🎮 Controls
 
-```bash
-pip install pygame==2.6.1
-```
-```bash
-pip install requirement.txt
-```
+| Key        | Action                     |
+|------------|----------------------------|
+| `←` `→`    | Move Left / Right          |
+| `P`        | Pause / Resume             |
+| `R`        | Restart Game               |
+| `M`        | Toggle Sound & Music       |
+| `ESC`      | Quit Game                  |
 
-## 🕹️ Controls
-| Key | Action |
-|-----|--------|
-| ←   | Move Left |
-| →   | Move Right |
-| R   | Restart Game |
+---
 
 ## 📁 Project Structure
 ```
-Game/
-├── atari.py          # Main game file
-├── highscore.txt     # High score storage
-└── README.md         # This file
-___ requirement.txt   # Install this
-___ music             #enjoy with music
-___ screenshots       #folder
+Racing-car-game/
+├── .github/              # GitHub workflows & issue templates
+├── assets/               # Images, icons, car skins, fonts, etc.
+├── music/                # Background music & sound effects
+├── screenshots/          # Game screenshots & GIFs
+├── .gitignore
+├── atari.py              # Main game (run this!)
+├── highscore.txt         # Stores your best score automatically
+├── requirement.txt       # Dependencies (just pygame)
+├── LICENCE               # MIT License
+├── README.md             # You're reading it!
+├── CONTRIBUTION_SUMMARY.md     # Summary of recent contributions
+├── FEATURES_COMPARISON.md      # Before/after feature comparison
+└── PR_DESCRIPTION.md           # Ready-to-use PR template
 ```
 
 ## 📸 Screenshots
-![Menu Screen](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/7eff43d06b5fe72609ba9ecde8aa4dc281fa9a2a/screenshots/game.jpg) 
-![Gameplay](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/7eff43d06b5fe72609ba9ecde8aa4dc281fa9a2a/screenshots/end.jpg)
+
+<div align="center">
+
+![Menu Screen](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/game.jpg?raw=true)
+
+<br><br>
+
+![Game Over Screen](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/end.jpg?raw=true)
+
+</div>
 
 ## 🛠️ Building Executables
 Windows:
@@ -71,15 +103,30 @@ pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
 
 ## 🎮 Game Preview
 
-![Game Preview](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/10f9cd6505059a66bafb5822d0335cc310ca601c/screenshots/1751802576626-ezgif.com-video-to-gif-converter.gif)
+<div align="center">
 
-👉 [Watch full gameplay video](https://youtu.be/k5jrHx1iIzo?si=a_mqdvHf74gBDF1Z)
+<img src="https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/10f9cd6505059a66bafb5822d0335cc310ca601c/screenshots/1751802576626-ezgif.com-video-to-gif-converter.gif?raw=true" 
+     alt="Exciting Racing Gameplay" 
+     width="850"/>
+
+<br>
+
+👉 [**Watch Full Gameplay on YouTube →**](https://youtu.be/k5jrHx1iIzo?si=a_mqdvHf74gBDF1Z)
+
+</div>
+
+---
 ## 🤝 Contributing
+
 Pull requests welcome! For major changes, please open an issue first.
 
 ## 📜 License
-MIT License - Free to use and modify
+This project is licensed under the **MIT License** –  
+Feel free to use, modify, distribute, and have fun with it! ❤️
 
 ---
+<div align="center">
 
-**Enjoy the race!** 🏁
+**Ready, Set, GO! Enjoy the race!** 🏎️💨🏁
+
+</div>
