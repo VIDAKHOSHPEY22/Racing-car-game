@@ -15,7 +15,7 @@
   <img src="https://raw.githubusercontent.com/VIDAKHOSHPEY22/Racing-car-game/main/screenshots/gameplay-preview.gif" alt="Gameplay Preview" width="800"/>
   <br>
 
-# 🏎️ Atari Speed Racer | Pygame Racing Game
+# 🏎️ Atari Speed Racer | Pygame Racing Gam
 
 ![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/start.jpg)
 
