@@ -13,7 +13,6 @@ FPS = 60
 BLACK = (10, 10, 10)
 WHITE = (240, 240, 240)
 GRAY = (100, 100, 100)
-DARK_GRAY = (40, 40, 45)
 RED = (220, 50, 50)
 GREEN = (50, 200, 80)
 BLUE = (50, 120, 220)
@@ -28,21 +27,24 @@ GRASS_COLOR = (45, 75, 40)
 ROAD_LEFT = 150
 ROAD_RIGHT = 650
 
+COIN_INTERVAL = 1.8
+MULTIPLIER_DECAY = 3.5
+
 CAR_SKINS = [
-    {"name": "Blue Racer",      "color": BLUE,   "type": "sedan"},
-    {"name": "Red Speedster",   "color": RED,    "type": "sedan"},
-    {"name": "Green Machine",   "color": GREEN,  "type": "suv"},
-    {"name": "Yellow Lightning","color": YELLOW, "type": "sedan"},
-    {"name": "Purple Power",    "color": PURPLE, "type": "suv"},
-    {"name": "Orange Blaze",    "color": ORANGE, "type": "truck"},
-    {"name": "Cyan Cruiser",    "color": CYAN,   "type": "sedan"},
-    {"name": "Pink Dream",      "color": PINK,   "type": "suv"},
+    {"name": "Blue Racer",       "color": BLUE,   "type": "sedan"},
+    {"name": "Red Speedster",    "color": RED,     "type": "sedan"},
+    {"name": "Green Machine",    "color": GREEN,   "type": "suv"},
+    {"name": "Yellow Lightning", "color": YELLOW,  "type": "sedan"},
+    {"name": "Purple Power",     "color": PURPLE,  "type": "suv"},
+    {"name": "Orange Blaze",     "color": ORANGE,  "type": "truck"},
+    {"name": "Cyan Cruiser",     "color": CYAN,    "type": "sedan"},
+    {"name": "Pink Dream",       "color": PINK,    "type": "suv"},
 ]
 
 DIFFICULTY = {
-    "Easy":   {"base_speed": 220, "obs_interval": 2.2, "speed_inc": 4,  "obs_speed": (180, 250)},
-    "Medium": {"base_speed": 280, "obs_interval": 1.6, "speed_inc": 6,  "obs_speed": (230, 320)},
-    "Hard":   {"base_speed": 340, "obs_interval": 1.1, "speed_inc": 8,  "obs_speed": (280, 400)},
+    "Easy":   {"base_speed": 220, "obs_interval": 2.2, "speed_inc": 4, "obs_speed": (180, 250)},
+    "Medium": {"base_speed": 280, "obs_interval": 1.6, "speed_inc": 6, "obs_speed": (230, 320)},
+    "Hard":   {"base_speed": 340, "obs_interval": 1.1, "speed_inc": 8, "obs_speed": (280, 400)},
 }
 
 LANE_CENTERS = [212, 325, 437, 550]
@@ -142,14 +144,14 @@ def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=Fal
     if car_type == "sedan":
         pg.draw.rect(surface, window_color, (x + 6, y + 12, w - 12, 20), border_radius=3)
         pg.draw.rect(surface, window_color, (x + 6, y + 38, w - 12, 18), border_radius=3)
-        pg.draw.line(surface, (0, 0, 0, 80), (x + 6, y + 23), (x + w - 6, y + 23), 1)
+        pg.draw.line(surface, (0, 0, 0), (x + 6, y + 23), (x + w - 6, y + 23), 1)
     elif car_type == "truck":
         pg.draw.rect(surface, window_color, (x + 8, y + 8, w - 16, 18), border_radius=3)
         pg.draw.rect(surface, shadow_col, (x + 4, y + 35, w - 8, h - 42), border_radius=2)
         pg.draw.line(surface, highlight, (x + 4, y + 34), (x + w - 4, y + 34), 1)
     else:
         pg.draw.rect(surface, window_color, (x + 6, y + 10, w - 12, 30), border_radius=3)
-        pg.draw.line(surface, (0, 0, 0, 80), (x + w // 2, y + 10), (x + w // 2, y + 40), 1)
+        pg.draw.line(surface, (0, 0, 0), (x + w // 2, y + 10), (x + w // 2, y + 40), 1)
 
     wheel_col = (18, 18, 18)
     rim_col = (90, 90, 95)
@@ -205,8 +207,7 @@ class Barrier:
     def draw(self, surface):
         pg.draw.rect(surface, (220, 220, 220), (self.x, self.y, self.WIDTH, self.HEIGHT), border_radius=3)
         for i in range(3):
-            stripe_x = self.x + i * 20
-            pg.draw.rect(surface, ORANGE, (stripe_x + 2, self.y + 2, 14, self.HEIGHT - 4), border_radius=2)
+            pg.draw.rect(surface, ORANGE, (self.x + i * 20 + 2, self.y + 2, 14, self.HEIGHT - 4), border_radius=2)
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -299,8 +300,6 @@ class Road:
     def __init__(self, scroll_speed):
         self.scroll = 0.0
         self.scroll_speed = scroll_speed
-        total = self.STRIPE_H + self.STRIPE_GAP
-        self.offsets = [i * total for i in range((HEIGHT // total) + 2)]
 
     def update(self, dt):
         self.scroll += self.scroll_speed * dt
@@ -311,16 +310,9 @@ class Road:
     def draw(self, surface):
         pg.draw.rect(surface, GRASS_COLOR, (0, 0, ROAD_LEFT, HEIGHT))
         pg.draw.rect(surface, GRASS_COLOR, (ROAD_RIGHT, 0, WIDTH - ROAD_RIGHT, HEIGHT))
-
         pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_LEFT - 18, 0, 18, HEIGHT))
         pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_RIGHT, 0, 18, HEIGHT))
-
         pg.draw.rect(surface, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_RIGHT - ROAD_LEFT, HEIGHT))
-
-        for rx in range(ROAD_LEFT, ROAD_RIGHT, 6):
-            shade = random.randint(-3, 3)
-            c = clamp(ROAD_COLOR[0] + shade, 0, 255)
-            pg.draw.line(surface, (c, c, c + 2), (rx, 0), (rx, HEIGHT))
 
         period = self.STRIPE_H + self.STRIPE_GAP
         num = (HEIGHT // period) + 2
@@ -331,15 +323,6 @@ class Road:
 
         pg.draw.line(surface, WHITE, (ROAD_LEFT, 0), (ROAD_LEFT, HEIGHT), 3)
         pg.draw.line(surface, WHITE, (ROAD_RIGHT, 0), (ROAD_RIGHT, HEIGHT), 3)
-
-        for gx in range(0, ROAD_LEFT - 18, 22):
-            for gy in range(0, HEIGHT, 18):
-                c = clamp(GRASS_COLOR[1] + random.randint(-6, 6), 0, 255)
-                pg.draw.line(surface, (30, c, 25), (gx, gy), (gx + 10, gy + 8), 1)
-        for gx in range(ROAD_RIGHT + 18, WIDTH, 22):
-            for gy in range(0, HEIGHT, 18):
-                c = clamp(GRASS_COLOR[1] + random.randint(-6, 6), 0, 255)
-                pg.draw.line(surface, (30, c, 25), (gx, gy), (gx + 10, gy + 8), 1)
 
 
 class Player:
@@ -393,27 +376,27 @@ class Player:
 
 class HUD:
     def __init__(self, fonts):
-        self.font, self.small, self.tiny = fonts
-        self._surf = pg.Surface((200, 120), pg.SRCALPHA)
+        self.small, self.tiny = fonts[1], fonts[2]
+        self.surf = pg.Surface((200, 120), pg.SRCALPHA)
 
     def draw(self, surface, score, level, speed_pct, difficulty, multiplier):
-        self._surf.fill((0, 0, 0, 0))
-        self._surf.fill((10, 10, 18, 170), special_flags=0)
-        pg.draw.rect(self._surf, (255, 255, 255, 30), (0, 0, 200, 120), 2, border_radius=8)
+        self.surf.fill((10, 10, 18, 170))
+        pg.draw.rect(self.surf, (255, 255, 255, 30), (0, 0, 200, 120), 2, border_radius=8)
 
         pulse = int(4 * abs(math.sin(pg.time.get_ticks() / 400)))
-        sc = (255, 255, 90 + pulse)
-        self._blit(self._surf, self.small, f"Score  {score}", sc, 14, 10)
-        self._blit(self._surf, self.small, f"Level  {level}", CYAN, 14, 36)
-        self._blit(self._surf, self.small, f"Speed  {speed_pct}%", GREEN, 14, 60)
-        self._blit(self._surf, self.tiny, f"Mode: {difficulty}", YELLOW, 14, 86)
+        self._blit(f"Score  {score}", (255, 255, 90 + pulse), 14, 10)
+        self._blit(f"Level  {level}", CYAN, 14, 36)
+        self._blit(f"Speed  {speed_pct}%", GREEN, 14, 60)
+        self._blit(f"Mode: {difficulty}", YELLOW, 14, 86, tiny=True)
         if multiplier > 1.0:
             mc = YELLOW if multiplier >= 2.0 else (150, 220, 150)
-            self._blit(self._surf, self.tiny, f"x{multiplier:.1f} combo!", mc, 14, 102)
-        surface.blit(self._surf, (10, 10))
+            self._blit(f"x{multiplier:.1f} combo!", mc, 14, 102, tiny=True)
 
-    def _blit(self, surf, font, text, color, x, y):
-        surf.blit(font.render(text, True, color), (x, y))
+        surface.blit(self.surf, (10, 10))
+
+    def _blit(self, text, color, x, y, tiny=False):
+        font = self.tiny if tiny else self.small
+        self.surf.blit(font.render(text, True, color), (x, y))
 
 
 class Button:
@@ -424,12 +407,10 @@ class Button:
         self.hover_color = tuple(clamp(c + 35, 0, 255) for c in self.base_color)
 
     def draw(self, surface, font):
-        mouse = pg.mouse.get_pos()
-        col = self.hover_color if self.rect.collidepoint(mouse) else self.base_color
-        shadow = pg.Rect(self.rect.x + 3, self.rect.y + 4, self.rect.w, self.rect.h)
-        pg.draw.rect(surface, (0, 0, 0, 80), shadow, border_radius=8)
+        col = self.hover_color if self.rect.collidepoint(pg.mouse.get_pos()) else self.base_color
+        pg.draw.rect(surface, (0, 0, 0), (self.rect.x + 3, self.rect.y + 4, self.rect.w, self.rect.h), border_radius=8)
         pg.draw.rect(surface, col, self.rect, border_radius=8)
-        pg.draw.rect(surface, (255, 255, 255, 60), self.rect, 2, border_radius=8)
+        pg.draw.rect(surface, WHITE, self.rect, 2, border_radius=8)
         txt = font.render(self.text, True, WHITE)
         surface.blit(txt, txt.get_rect(center=self.rect.center))
 
@@ -438,9 +419,6 @@ class Button:
 
 
 class Game:
-    COIN_INTERVAL = 1.8
-    MULTIPLIER_DECAY = 3.5
-
     def __init__(self):
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption("Sleek Street Racer")
@@ -452,25 +430,19 @@ class Game:
         self.fonts = (f_main, f_small, f_tiny)
 
         self.music = MusicPlayer()
-
         self.selected_skin = 0
         self.selected_diff = "Medium"
-
         self.state = "menu"
-        self._init_ui()
-        self._reset_state()
 
-    def _init_ui(self):
-        f_main, f_small, _ = self.fonts
         self.hud = HUD(self.fonts)
         self.btn_play = Button(WIDTH // 2 - 100, 0, 200, 52, "START RACE")
         self.btn_pause = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
         self.btn_sound = Button(WIDTH - 115, 52, 100, 32, "SFX: ON", (60, 60, 80))
         self.btn_restart = Button(WIDTH // 2 - 90, HEIGHT // 2 + 40, 180, 46, "RESTART")
-        self.btn_menu = Button(WIDTH // 2 - 90, HEIGHT // 2 + 96, 180, 46, "MAIN MENU",
-                               (60, 80, 160))
-        self.btn_quit = Button(WIDTH // 2 - 90, HEIGHT // 2 + 152, 180, 46, "QUIT",
-                               (160, 50, 50))
+        self.btn_menu = Button(WIDTH // 2 - 90, HEIGHT // 2 + 96, 180, 46, "MAIN MENU", (60, 80, 160))
+        self.btn_quit = Button(WIDTH // 2 - 90, HEIGHT // 2 + 152, 180, 46, "QUIT", (160, 50, 50))
+
+        self._reset_state()
 
     def _reset_state(self):
         diff = DIFFICULTY[self.selected_diff]
@@ -502,20 +474,17 @@ class Game:
             return 0
 
     def _save_high_score(self):
-        hs = max(self.score, self._get_high_score())
         with open("highscore.txt", "w") as f:
-            f.write(str(hs))
+            f.write(str(max(self.score, self._get_high_score())))
 
     def run(self):
         while True:
-            dt = self.clock.tick(FPS) / 1000.0
-            dt = min(dt, 0.05)
+            dt = min(self.clock.tick(FPS) / 1000.0, 0.05)
             self._handle_events()
             self._update(dt)
             self._draw()
 
     def _handle_events(self):
-        f_main, f_small, f_tiny = self.fonts
         for ev in pg.event.get():
             if ev.type == pg.QUIT:
                 self.music.stop()
@@ -582,15 +551,12 @@ class Game:
 
     def _handle_menu_click(self, pos):
         for i, diff in enumerate(["Easy", "Medium", "Hard"]):
-            r = pg.Rect(WIDTH // 2 - 90, 138 + i * 46, 180, 36)
-            if r.collidepoint(pos):
+            if pg.Rect(WIDTH // 2 - 90, 138 + i * 46, 180, 36).collidepoint(pos):
                 self.selected_diff = diff
 
-        left = pg.Rect(WIDTH // 2 - 145, 345, 40, 40)
-        right = pg.Rect(WIDTH // 2 + 105, 345, 40, 40)
-        if left.collidepoint(pos):
+        if pg.Rect(WIDTH // 2 - 145, 345, 40, 40).collidepoint(pos):
             self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
-        if right.collidepoint(pos):
+        if pg.Rect(WIDTH // 2 + 105, 345, 40, 40).collidepoint(pos):
             self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
 
         self.btn_play.rect.y = 470
@@ -617,11 +583,9 @@ class Game:
             self._spawn_obstacle(diff)
 
         self.coin_timer += dt
-        if self.coin_timer >= self.COIN_INTERVAL:
+        if self.coin_timer >= COIN_INTERVAL:
             self.coin_timer = 0.0
-            lane = random.randint(0, 3)
-            spd = self.scroll_speed * 0.9
-            self.coins.append(Coin(LANE_CENTERS[lane], spd))
+            self.coins.append(Coin(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.9))
 
         player_rect = self.player.get_rect()
 
@@ -652,7 +616,7 @@ class Game:
                 self._on_coin(int(coin.x), int(coin.y))
 
         self.combo_timer += dt
-        if self.combo_timer >= self.MULTIPLIER_DECAY:
+        if self.combo_timer >= MULTIPLIER_DECAY:
             self.combo_timer = 0.0
             if self.combo > 0:
                 self.combo = max(0, self.combo - 1)
@@ -664,40 +628,30 @@ class Game:
         level_threshold = 5 + self.level * 3
         if self.score >= level_threshold * self.level:
             self.level += 1
-            self.scroll_speed = min(
-                self.scroll_speed + diff["speed_inc"],
-                diff["base_speed"] * 2.5
-            )
+            self.scroll_speed = min(self.scroll_speed + diff["speed_inc"], diff["base_speed"] * 2.5)
             self.obs_interval = max(0.55, self.obs_interval - 0.05)
             self.speed_pct = int(self.scroll_speed / diff["base_speed"] * 100)
 
     def _spawn_obstacle(self, diff):
         min_spd, max_spd = diff["obs_speed"]
         spd = random.uniform(min_spd, max_spd)
-
         occupied = {c.lane for c in self.obs_cars}
-        lanes = [l for l in range(4) if l not in occupied]
-        if not lanes:
-            lanes = list(range(4))
+        lanes = [l for l in range(4) if l not in occupied] or list(range(4))
         lane = random.choice(lanes)
-
         roll = random.random()
         if roll < 0.55:
             self.obs_cars.append(ObstacleCar(lane, spd))
         elif roll < 0.75:
-            x = LANE_CENTERS[lane] - Cone.WIDTH // 2
-            self.obs_misc.append(Cone(x, spd))
+            self.obs_misc.append(Cone(LANE_CENTERS[lane] - Cone.WIDTH // 2, spd))
         elif roll < 0.88:
-            x = LANE_CENTERS[lane] - Barrier.WIDTH // 2
-            self.obs_misc.append(Barrier(x, spd))
+            self.obs_misc.append(Barrier(LANE_CENTERS[lane] - Barrier.WIDTH // 2, spd))
         else:
             self.obs_misc.append(Pothole(LANE_CENTERS[lane], spd))
 
     def _on_passed(self):
         self.combo += 1
         self._recalc_multiplier()
-        gain = int(1 * self.multiplier)
-        self.score += gain
+        self.score += int(1 * self.multiplier)
 
     def _on_coin(self, x, y):
         self.combo += 1
@@ -779,8 +733,7 @@ class Game:
         for i, d in enumerate(["Easy", "Medium", "Hard"]):
             r = pg.Rect(WIDTH // 2 - 90, 138 + i * 46, 180, 36)
             sel = d == self.selected_diff
-            col = GREEN if sel else (70, 70, 75)
-            pg.draw.rect(self.screen, col, r, border_radius=7)
+            pg.draw.rect(self.screen, GREEN if sel else (70, 70, 75), r, border_radius=7)
             pg.draw.rect(self.screen, WHITE, r, 1 if not sel else 2, border_radius=7)
             t = f_small.render(d, True, WHITE)
             self.screen.blit(t, t.get_rect(center=r.center))
@@ -828,8 +781,7 @@ class Game:
         box.fill((18, 18, 28, 245))
         pg.draw.rect(box, box_border_color, (0, 0, 400, box_h), 3, border_radius=14)
         self.screen.blit(box, (bx, by))
-        f_main = self.fonts[0]
-        t = f_main.render(title_text, True, title_color)
+        t = self.fonts[0].render(title_text, True, title_color)
         self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + 18))
         return by
 
@@ -842,10 +794,7 @@ class Game:
         ]:
             t = f_small.render(text, True, col)
             self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
-        for text, dy in [
-            ("P / ESC to resume", 125),
-            ("R to restart", 143),
-        ]:
+        for text, dy in [("P / ESC to resume", 125), ("R to restart", 143)]:
             t = f_tiny.render(text, True, GRAY)
             self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
         self.btn_restart.rect.topleft = (WIDTH // 2 - 90, by + 168)
@@ -863,10 +812,8 @@ class Game:
         ]:
             t = f_small.render(text, True, col)
             self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
-        if self.score >= hs:
-            t = f_small.render("NEW HIGH SCORE!", True, YELLOW)
-        else:
-            t = f_tiny.render(f"Best: {hs}", True, GRAY)
+        t = (f_small.render("NEW HIGH SCORE!", True, YELLOW) if self.score >= hs
+             else f_tiny.render(f"Best: {hs}", True, GRAY))
         self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + 118))
         self.btn_restart.rect.topleft = (WIDTH // 2 - 90, by + 148)
         self.btn_menu.rect.topleft = (WIDTH // 2 - 90, by + 200)
