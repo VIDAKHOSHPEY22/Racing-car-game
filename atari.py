@@ -636,7 +636,7 @@ class Game:
         min_spd, max_spd = diff["obs_speed"]
         spd = random.uniform(min_spd, max_spd)
         occupied = {c.lane for c in self.obs_cars}
-        lanes = [l for l in range(4) if l not in occupied] or list(range(4))
+        lanes = [i for i in range(4) if i not in occupied] or list(range(4))
         lane = random.choice(lanes)
         roll = random.random()
         if roll < 0.55:
