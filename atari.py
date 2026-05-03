@@ -515,10 +515,6 @@ class Player:
             draw_car(surface, int(self.x), int(self.y), self.WIDTH, self.HEIGHT,
                      self.color, CYAN, self.car_type, player=True)
 
-        if self.shield_active:
-            t = self.powerup_timers["shield"] / POWERUP_DURATION["shield"]
-            alpha = int(80 + 60 * abs(math.sin(pg.time.get_ticks() / 200)))
-            r = self.WIDTH // 2 + 10
             shield_surf = pg.Surface((r * 2 + 4, r * 2 + 4), pg.SRCALPHA)
             pg.draw.ellipse(shield_surf, (80, 160, 255, alpha),
                             (0, 0, r * 2 + 4, r * 2 + 4), 3)
