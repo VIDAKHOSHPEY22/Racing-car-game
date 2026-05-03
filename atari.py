@@ -4,178 +4,418 @@ import random
 import os
 import math
 
-# Initialize pygame
 pg.init()
 pg.mixer.init()
 
-# Game settings
 WIDTH, HEIGHT = 800, 600
 FPS = 60
-BASE_SPEED = 10
 
-# Colors
 BLACK = (10, 10, 10)
 WHITE = (240, 240, 240)
 GRAY = (100, 100, 100)
-RED = (230, 50, 50)
-GREEN = (50, 200, 50)
+RED = (220, 50, 50)
+GREEN = (50, 200, 80)
 BLUE = (50, 120, 220)
-YELLOW = (240, 220, 50)
-CYAN = (50, 220, 220)
-BUTTON_COLOR = (50, 180, 80)
-ROAD_COLOR = (40, 40, 45)
-SHOULDER_COLOR = (70, 70, 75)
+YELLOW = (240, 210, 40)
+CYAN = (50, 210, 210)
 ORANGE = (255, 140, 0)
-PURPLE = (180, 60, 180)
-PINK = (255, 105, 180)
+PURPLE = (170, 60, 180)
+PINK = (255, 100, 170)
+ROAD_COLOR = (35, 35, 40)
+SHOULDER_COLOR = (60, 62, 58)
+GRASS_COLOR = (45, 75, 40)
+ROAD_LEFT = 150
+ROAD_RIGHT = 650
 
-# Car Skins - Different colors and types
+COIN_INTERVAL = 1.8
+MULTIPLIER_DECAY = 3.5
+
 CAR_SKINS = [
-    {"name": "Blue Racer", "color": BLUE, "type": "sedan"},
-    {"name": "Red Speedster", "color": RED, "type": "sedan"},
-    {"name": "Green Machine", "color": GREEN, "type": "suv"},
-    {"name": "Yellow Lightning", "color": YELLOW, "type": "sedan"},
-    {"name": "Purple Power", "color": PURPLE, "type": "suv"},
-    {"name": "Orange Blaze", "color": ORANGE, "type": "truck"},
-    {"name": "Cyan Cruiser", "color": CYAN, "type": "sedan"},
-    {"name": "Pink Dream", "color": PINK, "type": "suv"},
+    {"name": "Blue Racer",       "color": BLUE,   "type": "sedan"},
+    {"name": "Red Speedster",    "color": RED,     "type": "sedan"},
+    {"name": "Green Machine",    "color": GREEN,   "type": "suv"},
+    {"name": "Yellow Lightning", "color": YELLOW,  "type": "sedan"},
+    {"name": "Purple Power",     "color": PURPLE,  "type": "suv"},
+    {"name": "Orange Blaze",     "color": ORANGE,  "type": "truck"},
+    {"name": "Cyan Cruiser",     "color": CYAN,    "type": "sedan"},
+    {"name": "Pink Dream",       "color": PINK,    "type": "suv"},
 ]
 
-# Difficulty Settings
-DIFFICULTY_SETTINGS = {
-    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9)},
-    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12)},
-    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15)},
+DIFFICULTY = {
+    "Easy":   {"base_speed": 220, "obs_interval": 2.2, "speed_inc": 4, "obs_speed": (180, 250)},
+    "Medium": {"base_speed": 280, "obs_interval": 1.6, "speed_inc": 6, "obs_speed": (230, 320)},
+    "Hard":   {"base_speed": 340, "obs_interval": 1.1, "speed_inc": 8, "obs_speed": (280, 400)},
 }
 
+LANE_CENTERS = [212, 325, 437, 550]
 
-# Music setup
-def load_music():
-    music_folder = "music"  # Folder where music files are stored
+OBSTACLE_COLORS = [
+    (210, 55, 55),
+    (55, 170, 55),
+    (210, 130, 50),
+    (160, 55, 170),
+    (50, 100, 200),
+    (180, 170, 50),
+]
+
+
+def clamp(val, lo, hi):
+    return max(lo, min(hi, val))
+
+
+def load_music_playlist():
+    folder = "music"
     try:
-        if not os.path.exists(music_folder):
-            os.makedirs(music_folder)
-            print(f"Created '{music_folder}' folder. Please add your music files there.")
-            return None
-        music_files = [f for f in os.listdir(music_folder) if f.endswith(('.mp3', '.wav', '.ogg'))]
-        if not music_files:
-            print(f"No music files found in '{music_folder}' folder.")
-            return None
-        selected_music = os.path.join(music_folder, random.choice(music_files))
-        pg.mixer.music.load(selected_music)
-        pg.mixer.music.set_volume(0.5)
-        return selected_music
-    except Exception as e:
-        print(f"Error loading music: {e}")
-        return None
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+            return []
+        files = [
+            os.path.join(folder, f)
+            for f in os.listdir(folder)
+            if f.lower().endswith((".mp3", ".wav", ".ogg"))
+        ]
+        random.shuffle(files)
+        return files
+    except Exception:
+        return []
 
 
-# ------------------ Coin class ------------------
-class Coin:
-    def __init__(self, x, y):
+class MusicPlayer:
+    def __init__(self):
+        self.playlist = load_music_playlist()
+        self.index = 0
+        self.muted = False
+        self.playing = False
+
+    def play(self):
+        if not self.playlist:
+            return
+        track = self.playlist[self.index % len(self.playlist)]
+        try:
+            pg.mixer.music.load(track)
+            pg.mixer.music.set_volume(0.0 if self.muted else 0.5)
+            pg.mixer.music.play()
+            self.playing = True
+        except Exception:
+            self.next_track()
+
+    def next_track(self):
+        if not self.playlist:
+            return
+        self.index = (self.index + 1) % len(self.playlist)
+        self.play()
+
+    def update(self):
+        if self.playing and not pg.mixer.music.get_busy() and not self.muted:
+            self.next_track()
+
+    def pause(self):
+        pg.mixer.music.pause()
+
+    def unpause(self):
+        if not self.muted:
+            pg.mixer.music.unpause()
+
+    def stop(self):
+        pg.mixer.music.stop()
+        self.playing = False
+
+    def toggle_mute(self):
+        self.muted = not self.muted
+        pg.mixer.music.set_volume(0.0 if self.muted else 0.5)
+
+    def fadeout(self, ms=1500):
+        pg.mixer.music.fadeout(ms)
+
+
+def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=False):
+    shadow = pg.Surface((w + 6, h // 3), pg.SRCALPHA)
+    pg.draw.ellipse(shadow, (0, 0, 0, 60), shadow.get_rect())
+    surface.blit(shadow, (x - 3, y + h - h // 6))
+
+    r, g, b = body_color
+    highlight = (clamp(r + 40, 0, 255), clamp(g + 40, 0, 255), clamp(b + 40, 0, 255))
+    shadow_col = (clamp(r - 40, 0, 255), clamp(g - 40, 0, 255), clamp(b - 40, 0, 255))
+
+    pg.draw.rect(surface, shadow_col, (x + 2, y + 4, w - 4, h - 4), border_radius=5)
+    pg.draw.rect(surface, body_color, (x, y, w, h), border_radius=5)
+    pg.draw.rect(surface, highlight, (x + 3, y + 3, w - 6, 8), border_radius=3)
+
+    if car_type == "sedan":
+        pg.draw.rect(surface, window_color, (x + 6, y + 12, w - 12, 20), border_radius=3)
+        pg.draw.rect(surface, window_color, (x + 6, y + 38, w - 12, 18), border_radius=3)
+        pg.draw.line(surface, (0, 0, 0), (x + 6, y + 23), (x + w - 6, y + 23), 1)
+    elif car_type == "truck":
+        pg.draw.rect(surface, window_color, (x + 8, y + 8, w - 16, 18), border_radius=3)
+        pg.draw.rect(surface, shadow_col, (x + 4, y + 35, w - 8, h - 42), border_radius=2)
+        pg.draw.line(surface, highlight, (x + 4, y + 34), (x + w - 4, y + 34), 1)
+    else:
+        pg.draw.rect(surface, window_color, (x + 6, y + 10, w - 12, 30), border_radius=3)
+        pg.draw.line(surface, (0, 0, 0), (x + w // 2, y + 10), (x + w // 2, y + 40), 1)
+
+    wheel_col = (18, 18, 18)
+    rim_col = (90, 90, 95)
+    for wx, wy in [(x - 4, y + 8), (x + w - 9, y + 8), (x - 4, y + h - 20), (x + w - 9, y + h - 20)]:
+        pg.draw.rect(surface, wheel_col, (wx, wy, 13, 13), border_radius=3)
+        pg.draw.rect(surface, rim_col, (wx + 3, wy + 3, 7, 7), border_radius=2)
+
+    if player:
+        for lx in [x + 4, x + w - 12]:
+            pg.draw.ellipse(surface, (255, 255, 180), (lx, y - 5, 8, 6))
+        pg.draw.rect(surface, RED, (x + 4, y + h - 4, w - 8, 4), border_radius=2)
+
+
+class Cone:
+    WIDTH = 18
+    HEIGHT = 26
+
+    def __init__(self, x, speed):
         self.x = x
-        self.y = y
-        self.radius = 12
-        self.color = (240, 220, 50)
-        self.speed = 8
+        self.y = -self.HEIGHT
+        self.speed = speed
 
-    def draw(self, screen):
-        pg.draw.circle(screen, self.color, (self.x, self.y), self.radius)
-        pg.draw.circle(screen, (255, 255, 255), (self.x, self.y), self.radius, 2)
-
-    def move(self):
-        self.y += self.speed
+    def update(self, dt):
+        self.y += self.speed * dt
         return self.y > HEIGHT
 
-    def grow(self):
-        self.radius += 5
+    def draw(self, surface):
+        cx = self.x + self.WIDTH // 2
+        pg.draw.polygon(surface, ORANGE, [
+            (cx, self.y),
+            (self.x, self.y + self.HEIGHT),
+            (self.x + self.WIDTH, self.y + self.HEIGHT),
+        ])
+        pg.draw.rect(surface, WHITE, (self.x + 2, self.y + self.HEIGHT - 6, self.WIDTH - 4, 4))
+
+    def get_rect(self):
+        return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
 
 
-# Enhanced car class
-class Car:
-    def __init__(self, x, y, color, player=False, car_type="sedan"):
-        self.width = 50
-        self.height = 90 if player else random.choice([80, 85, 90, 95])
+class Barrier:
+    WIDTH = 60
+    HEIGHT = 20
+
+    def __init__(self, x, speed):
         self.x = x
-        self.y = y
-        self.speed = BASE_SPEED if player else random.randint(6, 10)
-        self.color = color
-        self.player = player
-        self.window_color = CYAN if player else WHITE
-        self.type = car_type if player else random.choice(["sedan", "truck", "suv"])
-        self.road_boundary_left = 150
-        self.road_boundary_right = WIDTH - 200
+        self.y = -self.HEIGHT
+        self.speed = speed
 
-    def draw(self, screen):
-        pg.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
-        pg.draw.rect(screen, (min(self.color[0] + 20, 255), min(self.color[1] + 20, 255),
-                              min(self.color[2] + 20, 255)), (self.x + 2, self.y + 2, self.width - 4, 10))
-        if self.type == "sedan":
-            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 25))
-            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 40, self.width - 10, 25))
-            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 25), 1)
-            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 40, self.width - 10, 25), 1)
-        elif self.type == "truck":
-            pg.draw.rect(screen, self.window_color, (self.x + 10, self.y - 15, 30, 10))
-            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 25))
-            pg.draw.rect(screen, BLACK, (self.x + 10, self.y - 15, 30, 10), 1)
-            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 25), 1)
-        else:
-            pg.draw.rect(screen, self.window_color, (self.x + 5, self.y + 10, self.width - 10, 40))
-            pg.draw.rect(screen, BLACK, (self.x + 5, self.y + 10, self.width - 10, 40), 1)
-        wheel_color = (20, 20, 20)
-        rim_color = (80, 80, 80)
-        for wheel_pos in [(5, self.height - 15), (self.width - 20, self.height - 15), (5, 0), (self.width - 20, 0)]:
-            pg.draw.ellipse(screen, wheel_color, (self.x + wheel_pos[0], self.y + wheel_pos[1], 15, 15))
-            pg.draw.ellipse(screen, rim_color, (self.x + wheel_pos[0] + 3, self.y + wheel_pos[1] + 3, 9, 9))
+    def update(self, dt):
+        self.y += self.speed * dt
+        return self.y > HEIGHT
 
-    def move(self, direction=None):
-        if self.player:
-            if direction == "left":
-                self.x = max(self.road_boundary_left, self.x - self.speed)
-            if direction == "right":
-                self.x = min(self.road_boundary_right, self.x + self.speed)
-        else:
-            self.y += self.speed
-            return self.y > HEIGHT
+    def draw(self, surface):
+        pg.draw.rect(surface, (220, 220, 220), (self.x, self.y, self.WIDTH, self.HEIGHT), border_radius=3)
+        for i in range(3):
+            pg.draw.rect(surface, ORANGE, (self.x + i * 20 + 2, self.y + 2, 14, self.HEIGHT - 4), border_radius=2)
+
+    def get_rect(self):
+        return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
+
+
+class Pothole:
+    RADIUS = 14
+
+    def __init__(self, x, speed):
+        self.x = x
+        self.y = -self.RADIUS * 2
+        self.speed = speed
+
+    def update(self, dt):
+        self.y += self.speed * dt
+        return self.y > HEIGHT
+
+    def draw(self, surface):
+        pg.draw.ellipse(surface, (20, 18, 15),
+                        (self.x - self.RADIUS, self.y - self.RADIUS // 2,
+                         self.RADIUS * 2, self.RADIUS))
+        pg.draw.ellipse(surface, (50, 45, 40),
+                        (self.x - self.RADIUS + 3, self.y - self.RADIUS // 2 + 2,
+                         self.RADIUS * 2 - 6, self.RADIUS - 4))
+
+    def get_rect(self):
+        return pg.Rect(
+            self.x - self.RADIUS, self.y - self.RADIUS // 2,
+            self.RADIUS * 2, self.RADIUS
+        )
+
+
+class Coin:
+    RADIUS = 11
+
+    def __init__(self, x, speed):
+        self.x = x
+        self.y = -self.RADIUS * 2
+        self.speed = speed
+        self.angle = 0.0
+
+    def update(self, dt):
+        self.y += self.speed * dt
+        self.angle += 3.0 * dt
+        return self.y > HEIGHT
+
+    def draw(self, surface):
+        scale = abs(math.cos(self.angle))
+        w = max(4, int(self.RADIUS * 2 * scale))
+        h = self.RADIUS * 2
+        coin_surf = pg.Surface((w, h), pg.SRCALPHA)
+        pg.draw.ellipse(coin_surf, (200, 170, 20), (0, 0, w, h))
+        pg.draw.ellipse(coin_surf, (240, 210, 60), (1, 1, w - 2, h - 2))
+        pg.draw.ellipse(coin_surf, (255, 235, 100), (w // 4, 2, w // 2, h // 4))
+        surface.blit(coin_surf, (self.x - w // 2, self.y - self.RADIUS))
+
+    def get_rect(self):
+        return pg.Rect(self.x - self.RADIUS, self.y - self.RADIUS, self.RADIUS * 2, self.RADIUS * 2)
+
+
+class ObstacleCar:
+    def __init__(self, lane, speed):
+        self.width = 48
+        self.height = random.choice([82, 88, 94])
+        self.x = float(LANE_CENTERS[lane] - self.width // 2)
+        self.y = float(-self.height - 10)
+        self.speed = speed
+        self.color = random.choice(OBSTACLE_COLORS)
+        self.car_type = random.choice(["sedan", "suv", "truck"])
+        self.lane = lane
+
+    def update(self, dt):
+        self.y += self.speed * dt
+        return self.y > HEIGHT
+
+    def draw(self, surface):
+        draw_car(surface, int(self.x), int(self.y), self.width, self.height,
+                 self.color, WHITE, self.car_type)
+
+    def get_rect(self):
+        return pg.Rect(int(self.x) + 4, int(self.y) + 4, self.width - 8, self.height - 8)
 
 
 class Road:
-    def __init__(self, base_speed=10):
-        self.road_width = 500
-        self.road_x = (WIDTH - self.road_width) // 2
-        self.stripes = []
-        for i in range(10):
-            self.stripes.append({
-                'y': i * 120 - 100,
-                'width': 60,
-                'height': 20,
-                'speed': base_speed + 2
-            })
+    STRIPE_W = 8
+    STRIPE_H = 50
+    STRIPE_GAP = 80
+    LANE_DIVIDERS = [LANE_CENTERS[1] - 6, LANE_CENTERS[2] - 6, LANE_CENTERS[3] - 6]
 
-    def draw(self, screen):
-        pg.draw.rect(screen, SHOULDER_COLOR, (0, 0, self.road_x, HEIGHT))
-        pg.draw.rect(screen, SHOULDER_COLOR, (self.road_x + self.road_width, 0, WIDTH, HEIGHT))
-        pg.draw.rect(screen, ROAD_COLOR, (self.road_x, 0, self.road_width, HEIGHT))
-        for i in range(0, HEIGHT, 4):
-            brightness = random.randint(-5, 5)
-            shade = (ROAD_COLOR[0] + brightness, ROAD_COLOR[1] + brightness, ROAD_COLOR[2] + brightness)
-            pg.draw.line(screen, shade, (self.road_x, i), (self.road_x + self.road_width, i), 1)
-        for stripe in self.stripes:
-            pg.draw.rect(screen, WHITE,
-                         (WIDTH // 2 - stripe['width'] // 2, stripe['y'], stripe['width'], stripe['height']))
-            if stripe['y'] % 240 < 120:
-                reflect = pg.Surface((stripe['width'], stripe['height'] // 3), pg.SRCALPHA)
-                reflect.fill((255, 255, 255, 30))
-                screen.blit(reflect, (WIDTH // 2 - stripe['width'] // 2, stripe['y']))
-        pg.draw.line(screen, WHITE, (self.road_x, 0), (self.road_x, HEIGHT), 2)
-        pg.draw.line(screen, WHITE, (self.road_x + self.road_width, 0), (self.road_x + self.road_width, HEIGHT), 2)
+    def __init__(self, scroll_speed):
+        self.scroll = 0.0
+        self.scroll_speed = scroll_speed
 
-    def update(self):
-        for stripe in self.stripes:
-            stripe['y'] += stripe['speed']
-            if stripe['y'] > HEIGHT:
-                stripe['y'] = -stripe['height']
+    def update(self, dt):
+        self.scroll += self.scroll_speed * dt
+        period = self.STRIPE_H + self.STRIPE_GAP
+        if self.scroll >= period:
+            self.scroll -= period
+
+    def draw(self, surface):
+        pg.draw.rect(surface, GRASS_COLOR, (0, 0, ROAD_LEFT, HEIGHT))
+        pg.draw.rect(surface, GRASS_COLOR, (ROAD_RIGHT, 0, WIDTH - ROAD_RIGHT, HEIGHT))
+        pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_LEFT - 18, 0, 18, HEIGHT))
+        pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_RIGHT, 0, 18, HEIGHT))
+        pg.draw.rect(surface, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_RIGHT - ROAD_LEFT, HEIGHT))
+
+        period = self.STRIPE_H + self.STRIPE_GAP
+        num = (HEIGHT // period) + 2
+        for i in range(num):
+            y = int(i * period - self.scroll % period)
+            for lx in self.LANE_DIVIDERS:
+                pg.draw.rect(surface, (90, 90, 95), (lx, y, self.STRIPE_W, self.STRIPE_H))
+
+        pg.draw.line(surface, WHITE, (ROAD_LEFT, 0), (ROAD_LEFT, HEIGHT), 3)
+        pg.draw.line(surface, WHITE, (ROAD_RIGHT, 0), (ROAD_RIGHT, HEIGHT), 3)
+
+
+class Player:
+    WIDTH = 48
+    HEIGHT = 88
+    SPEED = 320
+
+    def __init__(self, color, car_type):
+        self.x = float(WIDTH // 2 - self.WIDTH // 2)
+        self.y = float(HEIGHT - self.HEIGHT - 30)
+        self.color = color
+        self.car_type = car_type
+        self.vel_x = 0.0
+        self.tilt = 0.0
+
+    def update(self, dt, keys):
+        accel = 900
+        friction = 600
+        if keys[pg.K_LEFT]:
+            self.vel_x = max(self.vel_x - accel * dt, -self.SPEED)
+        elif keys[pg.K_RIGHT]:
+            self.vel_x = min(self.vel_x + accel * dt, self.SPEED)
+        else:
+            if self.vel_x > 0:
+                self.vel_x = max(0.0, self.vel_x - friction * dt)
+            else:
+                self.vel_x = min(0.0, self.vel_x + friction * dt)
+
+        self.x += self.vel_x * dt
+        self.x = clamp(self.x, ROAD_LEFT + 2, ROAD_RIGHT - self.WIDTH - 2)
+
+        target_tilt = self.vel_x / self.SPEED * 6
+        self.tilt += (target_tilt - self.tilt) * 8 * dt
+
+    def draw(self, surface):
+        if abs(self.tilt) > 0.3:
+            temp = pg.Surface((self.WIDTH + 12, self.HEIGHT + 12), pg.SRCALPHA)
+            draw_car(temp, 6, 6, self.WIDTH, self.HEIGHT, self.color, CYAN, self.car_type, player=True)
+            rotated = pg.transform.rotate(temp, -self.tilt)
+            surface.blit(rotated, rotated.get_rect(center=(int(self.x + self.WIDTH // 2),
+                                                            int(self.y + self.HEIGHT // 2))))
+        else:
+            draw_car(surface, int(self.x), int(self.y), self.WIDTH, self.HEIGHT,
+                     self.color, CYAN, self.car_type, player=True)
+
+    def get_rect(self):
+        margin = 6
+        return pg.Rect(int(self.x) + margin, int(self.y) + margin,
+                       self.WIDTH - margin * 2, self.HEIGHT - margin * 2)
+
+
+class HUD:
+    def __init__(self, fonts):
+        self.small, self.tiny = fonts[1], fonts[2]
+        self.surf = pg.Surface((200, 120), pg.SRCALPHA)
+
+    def draw(self, surface, score, level, speed_pct, difficulty, multiplier):
+        self.surf.fill((10, 10, 18, 170))
+        pg.draw.rect(self.surf, (255, 255, 255, 30), (0, 0, 200, 120), 2, border_radius=8)
+
+        pulse = int(4 * abs(math.sin(pg.time.get_ticks() / 400)))
+        self._blit(f"Score  {score}", (255, 255, 90 + pulse), 14, 10)
+        self._blit(f"Level  {level}", CYAN, 14, 36)
+        self._blit(f"Speed  {speed_pct}%", GREEN, 14, 60)
+        self._blit(f"Mode: {difficulty}", YELLOW, 14, 86, tiny=True)
+        if multiplier > 1.0:
+            mc = YELLOW if multiplier >= 2.0 else (150, 220, 150)
+            self._blit(f"x{multiplier:.1f} combo!", mc, 14, 102, tiny=True)
+
+        surface.blit(self.surf, (10, 10))
+
+    def _blit(self, text, color, x, y, tiny=False):
+        font = self.tiny if tiny else self.small
+        self.surf.blit(font.render(text, True, color), (x, y))
+
+
+class Button:
+    def __init__(self, x, y, w, h, text, color=None):
+        self.rect = pg.Rect(x, y, w, h)
+        self.text = text
+        self.base_color = color or (45, 165, 75)
+        self.hover_color = tuple(clamp(c + 35, 0, 255) for c in self.base_color)
+
+    def draw(self, surface, font):
+        col = self.hover_color if self.rect.collidepoint(pg.mouse.get_pos()) else self.base_color
+        pg.draw.rect(surface, (0, 0, 0), (self.rect.x + 3, self.rect.y + 4, self.rect.w, self.rect.h), border_radius=8)
+        pg.draw.rect(surface, col, self.rect, border_radius=8)
+        pg.draw.rect(surface, WHITE, self.rect, 2, border_radius=8)
+        txt = font.render(self.text, True, WHITE)
+        surface.blit(txt, txt.get_rect(center=self.rect.center))
+
+    def clicked(self, pos):
+        return self.rect.collidepoint(pos)
 
 
 class Game:
@@ -183,657 +423,406 @@ class Game:
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption("Sleek Street Racer")
         self.clock = pg.time.Clock()
-        self.font = pg.font.Font(None, 42)
-        self.small_font = pg.font.Font(None, 28)
-        self.tiny_font = pg.font.Font(None, 20)
-        
-        # Game state
+
+        f_main = pg.font.Font(None, 44)
+        f_small = pg.font.Font(None, 30)
+        f_tiny = pg.font.Font(None, 22)
+        self.fonts = (f_main, f_small, f_tiny)
+
+        self.music = MusicPlayer()
         self.selected_skin = 0
-        self.selected_difficulty = "Medium"
-        self.player_color = CAR_SKINS[self.selected_skin]["color"]
-        self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
-        self.obstacles = []
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        self.base_speed = diff_settings["base_speed"]
-        self.road = Road(self.base_speed)
+        self.selected_diff = "Medium"
+        self.state = "menu"
 
-        # ----------------- Coins initialize -----------------
-        self.coins = []
-        self.last_coin_time = 0
-        self.coin_frequency = 2000
-        # ----------------------------------------------------
+        self.hud = HUD(self.fonts)
+        self.btn_play = Button(WIDTH // 2 - 100, 0, 200, 52, "START RACE")
+        self.btn_pause = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
+        self.btn_sound = Button(WIDTH - 115, 52, 100, 32, "SFX: ON", (60, 60, 80))
+        self.btn_restart = Button(WIDTH // 2 - 90, HEIGHT // 2 + 40, 180, 46, "RESTART")
+        self.btn_menu = Button(WIDTH // 2 - 90, HEIGHT // 2 + 96, 180, 46, "MAIN MENU", (60, 80, 160))
+        self.btn_quit = Button(WIDTH // 2 - 90, HEIGHT // 2 + 152, 180, 46, "QUIT", (160, 50, 50))
 
-        self.score = 0
-        self.level = 1
-        self.game_over = False
-        self.paused = False
-        self.in_menu = True
-        self.in_skin_selection = False
-        self.last_obstacle_time = 0
-        self.obstacle_frequency = DIFFICULTY_SETTINGS[self.selected_difficulty]["obstacle_freq"]
-        self.play_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 80, 200, 60, "START RACE")
-        self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
-        self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
-        self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
-        self.clock_speed = 1.2
-        self.score_animation = 0
-        self.music_muted = False
-        
-        # Score multiplier system
-        self.score_multiplier = 1.0
-        self.multiplier_timer = 0
-        self.multiplier_display_time = 0
-        self.multiplier_text_pos = (0, 0)
-        self.consecutive_actions = 0  # Track consecutive coins/obstacles avoided
+        self._reset_state()
 
-        # Load and play music
-        self.current_music = load_music()
-        if self.current_music:
-            pg.mixer.music.play(-1)
-
-    def handle_events(self):
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                if self.current_music:
-                    pg.mixer.music.stop()
-                pg.quit()
-                sys.exit()
-            if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
-                if self.in_menu:
-                    # Difficulty selection (matching draw_menu coordinates)
-                    y_offset = 100  # Same as in draw_menu
-                    for i, diff in enumerate(["Easy", "Medium", "Hard"]):
-                        btn_rect = pg.Rect(WIDTH // 2 - 100, y_offset + 30 + i * 45, 200, 35)
-                        if btn_rect.collidepoint(event.pos):
-                            self.selected_difficulty = diff
-                            break  # Exit loop once clicked
-                    # Skin selection arrows (matching draw_menu coordinates)
-                    # In draw_menu: y_offset starts at 100, adds 180, then preview_y = y_offset + 35 = 315
-                    # Arrows are at preview_y + 30 = 345
-                    preview_y_base = 100 + 180 + 35  # = 315 (matches draw_menu)
-                    left_arrow = pg.Rect(WIDTH // 2 - 150, preview_y_base + 30, 40, 40)
-                    right_arrow = pg.Rect(WIDTH // 2 + 110, preview_y_base + 30, 40, 40)
-                    if left_arrow.collidepoint(event.pos):
-                        self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
-                        self.player_color = CAR_SKINS[self.selected_skin]["color"]
-                        self.player_type = CAR_SKINS[self.selected_skin]["type"]
-                    if right_arrow.collidepoint(event.pos):
-                        self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
-                        self.player_color = CAR_SKINS[self.selected_skin]["color"]
-                        self.player_type = CAR_SKINS[self.selected_skin]["type"]
-                    # Play button
-                    if self.play_button.is_clicked(event.pos):
-                        self.start_game()
-                elif not self.game_over:
-                    # Pause button
-                    if self.pause_button.is_clicked(event.pos):
-                        self.paused = not self.paused
-                        if self.paused:
-                            if not self.music_muted:
-                                pg.mixer.music.pause()
-                        else:
-                            if not self.music_muted:
-                                pg.mixer.music.unpause()
-                    # Sound toggle button
-                    if self.sound_button.is_clicked(event.pos):
-                        self.music_muted = not self.music_muted
-                        if self.music_muted:
-                            pg.mixer.music.set_volume(0.0)
-                            self.sound_button.text = "SOUND: OFF"
-                        else:
-                            pg.mixer.music.set_volume(0.5)
-                            self.sound_button.text = "SOUND: ON"
-                            if not self.paused:
-                                pg.mixer.music.unpause()
-                    # Restart button (when paused)
-                    if self.paused and self.restart_button.is_clicked(event.pos):
-                        self.reset_game()
-                elif self.game_over:
-                    # Buttons in game over screen
-                    button_y_start = HEIGHT // 2 - 20
-                    button_spacing = 60
-                    
-                    # Restart button
-                    restart_btn_rect = pg.Rect(WIDTH // 2 - 100, button_y_start, 200, 45)
-                    if restart_btn_rect.collidepoint(event.pos):
-                        self.reset_game()
-                    
-                    # Return to Menu button
-                    menu_btn_rect = pg.Rect(WIDTH // 2 - 100, button_y_start + button_spacing, 200, 45)
-                    if menu_btn_rect.collidepoint(event.pos):
-                        self.return_to_menu()
-                    
-                    # Quit button
-                    quit_btn_rect = pg.Rect(WIDTH // 2 - 100, button_y_start + button_spacing * 2, 200, 45)
-                    if quit_btn_rect.collidepoint(event.pos):
-                        if self.current_music:
-                            pg.mixer.music.stop()
-                        pg.quit()
-                        sys.exit()
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_p or event.key == pg.K_ESCAPE:
-                    if not self.in_menu and not self.game_over:
-                        self.paused = not self.paused
-                        if self.paused:
-                            pg.mixer.music.pause()
-                        else:
-                            pg.mixer.music.unpause()
-                    elif self.game_over:
-                        # ESC from game over returns to menu
-                        self.return_to_menu()
-                if event.key == pg.K_r and (self.game_over or self.paused):
-                    self.reset_game()
-
-    def start_game(self):
-        self.in_menu = False
-        self.paused = False
-        self.game_over = False
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
-        self.obstacles = []
+    def _reset_state(self):
+        diff = DIFFICULTY[self.selected_diff]
+        skin = CAR_SKINS[self.selected_skin]
+        self.player = Player(skin["color"], skin["type"])
+        self.road = Road(diff["base_speed"])
+        self.obs_cars = []
+        self.obs_misc = []
         self.coins = []
         self.score = 0
         self.level = 1
-        self.last_obstacle_time = pg.time.get_ticks()
-        self.last_coin_time = pg.time.get_ticks()
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        self.obstacle_frequency = diff_settings["obstacle_freq"]
-        self.clock_speed = 1.0
-        self.base_speed = diff_settings["base_speed"]
-        self.road = Road(self.base_speed)
-        # Reset multiplier
-        self.score_multiplier = 1.0
-        self.multiplier_timer = 0
-        self.multiplier_display_time = 0
-        self.consecutive_actions = 0
-        if self.current_music:
-            if not self.music_muted:
-                pg.mixer.music.play(-1)
+        self.speed_pct = 100
+        self.scroll_speed = diff["base_speed"]
+        self.obs_timer = 0.0
+        self.obs_interval = diff["obs_interval"]
+        self.coin_timer = 0.0
+        self.combo = 0
+        self.multiplier = 1.0
+        self.combo_timer = 0.0
+        self.fb_text = ""
+        self.fb_pos = (WIDTH // 2, HEIGHT // 2)
+        self.fb_timer = 0.0
 
-    def update(self):
-        if self.game_over or self.in_menu or self.paused:
-            return
-
-        keys = pg.key.get_pressed()
-        if keys[pg.K_LEFT]:
-            self.player.move("left")
-        if keys[pg.K_RIGHT]:
-            self.player.move("right")
-
-        current_time = pg.time.get_ticks()
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        
-        # -------------- Obstacles ----------------
-        if current_time - self.last_obstacle_time > self.obstacle_frequency / self.clock_speed:
-            # Prevent cars from piling up - check for safe spawning position
-            min_spacing = 120  # Minimum vertical distance between cars
-            safe_to_spawn = True
-            
-            # Check if there's enough space at the top for a new obstacle
-            for existing_obstacle in self.obstacles:
-                # Check if any existing obstacle is too close to spawn point (y = -150)
-                if existing_obstacle.y > -150 - min_spacing and existing_obstacle.y < -150 + min_spacing:
-                    safe_to_spawn = False
-                    break
-            
-            if safe_to_spawn:
-                color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
-                
-                # Use lane-based spawning to prevent horizontal overlap
-                lane_width = (self.player.road_boundary_right - self.player.road_boundary_left) // 3
-                lane = random.randint(0, 2)
-                x_position = self.player.road_boundary_left + (lane * lane_width) + (lane_width // 2) - 25
-                x_position = max(self.player.road_boundary_left, min(self.player.road_boundary_right - 50, x_position))
-                
-                new_obstacle = Car(x_position, -150, color)
-                min_speed, max_speed = diff_settings["obstacle_speed"]
-                new_obstacle.speed = random.randint(min_speed, max_speed)
-                
-                # Final check: ensure no horizontal overlap with nearby obstacles
-                can_spawn = True
-                for existing_obstacle in self.obstacles:
-                    if existing_obstacle.y > -200 and existing_obstacle.y < -100:
-                        # Check horizontal overlap
-                        if (new_obstacle.x < existing_obstacle.x + existing_obstacle.width and
-                            new_obstacle.x + new_obstacle.width > existing_obstacle.x):
-                            can_spawn = False
-                            break
-                
-                if can_spawn:
-                    self.obstacles.append(new_obstacle)
-                    self.last_obstacle_time = current_time
-            if self.score > 0 and self.score % 3 == 0:
-                self.obstacle_frequency = max(600, self.obstacle_frequency - 100)
-                self.level += 1
-                self.clock_speed = min(2.5, self.clock_speed + diff_settings["speed_increase"])
-
-        for obstacle in self.obstacles[:]:
-            if obstacle.move():
-                self.obstacles.remove(obstacle)
-                # Increase multiplier for avoiding obstacles
-                self.consecutive_actions += 1
-                self.update_multiplier()
-                base_score = 1
-                self.score += int(base_score * self.score_multiplier)
-            if (self.player.x < obstacle.x + obstacle.width and
-                    self.player.x + self.player.width > obstacle.x and
-                    self.player.y < obstacle.y + obstacle.height and
-                    self.player.y + self.player.height > obstacle.y):
-                self.game_over = True
-                if self.current_music:
-                    pg.mixer.music.fadeout(2000)
-
-        # ---------------- Coins Spawn ----------------
-        if current_time - self.last_coin_time > self.coin_frequency:
-            new_coin = Coin(random.randint(self.player.road_boundary_left, self.player.road_boundary_right), -50)
-            self.coins.append(new_coin)
-            self.last_coin_time = current_time
-
-        # ---------------- Coins Move & Collision ----------------
-        for coin in self.coins[:]:
-            if coin.move():
-                self.coins.remove(coin)
-            if (self.player.x < coin.x + coin.radius and
-                    self.player.x + self.player.width > coin.x - coin.radius and
-                    self.player.y < coin.y + coin.radius and
-                    self.player.y + self.player.height > coin.y - coin.radius):
-                coin.grow()
-                self.coins.remove(coin)
-                # Increase multiplier for collecting coins
-                self.consecutive_actions += 1
-                self.update_multiplier()
-                base_score = 5
-                score_gain = int(base_score * self.score_multiplier)
-                self.score += score_gain
-                # Show multiplier feedback
-                self.multiplier_display_time = pg.time.get_ticks()
-                self.multiplier_text_pos = (coin.x, coin.y)
-
-        self.road.update()
-        
-        # Update multiplier timer (decrease multiplier if no actions)
-        current_time = pg.time.get_ticks()
-        if current_time - self.multiplier_timer > 3000:  # 3 seconds without action
-            if self.score_multiplier > 1.0:
-                self.consecutive_actions = max(0, self.consecutive_actions - 1)
-                self.update_multiplier()
-            self.multiplier_timer = current_time
-
-    def draw(self):
-        for y in range(HEIGHT):
-            shade = 10 + int(10 * (y / HEIGHT))
-            pg.draw.line(self.screen, (shade, shade, shade), (0, y), (WIDTH, y))
-
-        if self.in_menu:
-            self.draw_menu()
-        else:
-            self.road.draw(self.screen)
-            for car in [self.player] + self.obstacles:
-                shadow = pg.Surface((car.width, car.height // 3), pg.SRCALPHA)
-                shadow.fill((0, 0, 0, 80))
-                self.screen.blit(shadow, (car.x, car.y + car.height - 10))
-                car.draw(self.screen)
-
-            # Draw Coins
-            for coin in self.coins:
-                coin.draw(self.screen)
-
-            self.draw_scoreboard()
-            self.pause_button.draw(self.screen, self.tiny_font)
-            self.sound_button.draw(self.screen, self.tiny_font)
-            self.draw_multiplier_feedback()
-            if self.paused:
-                self.draw_pause_screen()
-            if self.game_over:
-                self.draw_game_over()
-        pg.display.flip()
-
-    def draw_menu(self):
-        # Background gradient
-        for y in range(HEIGHT):
-            shade = 10 + int(15 * (y / HEIGHT))
-            pg.draw.line(self.screen, (shade, shade, shade + 5), (0, y), (WIDTH, y))
-        
-        # Title with better styling
-        title = self.font.render("SLEEK STREET RACER", True, (200, 200, 0))
-        shadow = self.font.render("SLEEK STREET RACER", True, (80, 80, 0))
-        self.screen.blit(shadow, (WIDTH // 2 - title.get_width() // 2 + 3, 33))
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 30))
-        
-        # Menu container background
-        menu_bg = pg.Surface((500, 480), pg.SRCALPHA)
-        menu_bg.fill((0, 0, 0, 180))
-        pg.draw.rect(menu_bg, (255, 255, 255, 40), (0, 0, 500, 480), 2, border_radius=10)
-        self.screen.blit(menu_bg, (WIDTH // 2 - 250, 80))
-        
-        y_offset = 100
-        
-        # Difficulty Selection
-        diff_text = self.small_font.render("Difficulty:", True, WHITE)
-        self.screen.blit(diff_text, (WIDTH // 2 - diff_text.get_width() // 2, y_offset))
-        
-        for i, diff in enumerate(["Easy", "Medium", "Hard"]):
-            btn_rect = pg.Rect(WIDTH // 2 - 100, y_offset + 30 + i * 45, 200, 35)
-            color = GREEN if diff == self.selected_difficulty else GRAY
-            hover_color = (min(color[0] + 30, 255), min(color[1] + 30, 255), min(color[2] + 30, 255))
-            mouse_pos = pg.mouse.get_pos()
-            btn_color = hover_color if btn_rect.collidepoint(mouse_pos) else color
-            pg.draw.rect(self.screen, btn_color, btn_rect, border_radius=8)
-            pg.draw.rect(self.screen, WHITE, btn_rect, 2, border_radius=8)
-            text = self.small_font.render(diff, True, WHITE)
-            text_rect = text.get_rect(center=btn_rect.center)
-            self.screen.blit(text, text_rect)
-        
-        y_offset += 180
-        
-        # Car Skin Selection
-        skin_text = self.small_font.render("Car Skin:", True, WHITE)
-        self.screen.blit(skin_text, (WIDTH // 2 - skin_text.get_width() // 2, y_offset))
-        
-        # Skin preview area
-        preview_x = WIDTH // 2 - 25
-        preview_y = y_offset + 35
-        
-        # Background for car preview
-        preview_bg = pg.Surface((100, 110), pg.SRCALPHA)
-        preview_bg.fill((30, 30, 40, 200))
-        pg.draw.rect(preview_bg, (255, 255, 255, 30), (0, 0, 100, 110), 2, border_radius=5)
-        self.screen.blit(preview_bg, (preview_x - 25, preview_y - 5))
-        
-        preview_car = Car(preview_x, preview_y, self.player_color, True, self.player_type)
-        preview_car.draw(self.screen)
-        
-        # Navigation arrows
-        left_arrow = pg.Rect(WIDTH // 2 - 150, preview_y + 30, 40, 40)
-        right_arrow = pg.Rect(WIDTH // 2 + 110, preview_y + 30, 40, 40)
-        mouse_pos = pg.mouse.get_pos()
-        
-        for arrow_rect, symbol in [(left_arrow, "<"), (right_arrow, ">")]:
-            hover = arrow_rect.collidepoint(mouse_pos)
-            color = GREEN if hover else GRAY
-            pg.draw.rect(self.screen, color, arrow_rect, border_radius=5)
-            pg.draw.rect(self.screen, WHITE, arrow_rect, 2, border_radius=5)
-            arrow_text = self.small_font.render(symbol, True, WHITE)
-            arrow_text_rect = arrow_text.get_rect(center=arrow_rect.center)
-            self.screen.blit(arrow_text, arrow_text_rect)
-        
-        # Skin name
-        skin_name = self.tiny_font.render(CAR_SKINS[self.selected_skin]["name"], True, YELLOW)
-        self.screen.blit(skin_name, (WIDTH // 2 - skin_name.get_width() // 2, preview_y + 100))
-        
-        y_offset += 150
-        
-        # High score
-        hs_text = self.tiny_font.render(f"High Score: {self.get_high_score()}", True, YELLOW)
-        self.screen.blit(hs_text, (WIDTH // 2 - hs_text.get_width() // 2, y_offset))
-        
-        y_offset += 30
-        
-        # Play button
-        self.play_button.rect.y = y_offset
-        self.play_button.draw(self.screen, self.font)
-        
-        y_offset += 80
-        
-        # Instructions (compact)
-        instructions = [
-            "← → to steer | P to pause | R to restart"
-        ]
-        for i, line in enumerate(instructions):
-            text = self.tiny_font.render(line, True, GRAY)
-            self.screen.blit(text, (WIDTH // 2 - text.get_width() // 2, y_offset + i * 20))
-
-    def draw_scoreboard(self):
-        # Animated scoreboard with smooth design
-        self.score_animation += 0.1
-        pulse = int(5 * abs(math.sin(self.score_animation)))
-        
-        hud_bg = pg.Surface((280, 160), pg.SRCALPHA)
-        hud_bg.fill((0, 0, 0, 180))
-        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, 280, 160), 3, border_radius=10)
-        
-        # Gradient effect
-        for i in range(160):
-            alpha = int(30 * (1 - i / 160))
-            pg.draw.line(hud_bg, (50, 180, 80, alpha), (0, i), (280, i))
-        
-        self.screen.blit(hud_bg, (10, 10))
-        
-        # Score with animation
-        score_color = (255, 255, 100 + pulse) if self.score > 0 else WHITE
-        score_text = self.small_font.render(f"Score: {self.score}", True, score_color)
-        self.screen.blit(score_text, (25, 25))
-        
-        # Level
-        level_text = self.small_font.render(f"Level: {self.level}", True, CYAN)
-        self.screen.blit(level_text, (25, 55))
-        
-        # Speed
-        speed_text = self.small_font.render(f"Speed: {int(self.clock_speed * 100)}%", True, GREEN)
-        self.screen.blit(speed_text, (25, 85))
-        
-        # Difficulty indicator
-        diff_indicator = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
-        self.screen.blit(diff_indicator, (25, 115))
-        
-        # Score multiplier display
-        if self.score_multiplier > 1.0:
-            multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
-            multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (25, 135))
-
-    def update_multiplier(self):
-        """Update score multiplier based on consecutive actions"""
-        self.multiplier_timer = pg.time.get_ticks()
-        # Multiplier increases: 1.0 -> 1.5 -> 2.0 -> 2.5 -> 3.0 (max)
-        if self.consecutive_actions >= 20:
-            self.score_multiplier = 3.0
-        elif self.consecutive_actions >= 15:
-            self.score_multiplier = 2.5
-        elif self.consecutive_actions >= 10:
-            self.score_multiplier = 2.0
-        elif self.consecutive_actions >= 5:
-            self.score_multiplier = 1.5
-        else:
-            self.score_multiplier = 1.0
-    
-    def draw_multiplier_feedback(self):
-        """Draw multiplier feedback when collecting coins"""
-        if self.multiplier_display_time > 0:
-            current_time = pg.time.get_ticks()
-            elapsed = current_time - self.multiplier_display_time
-            
-            if elapsed < 1000:  # Show for 1 second
-                # Fade out effect
-                alpha = int(255 * (1 - elapsed / 1000))
-                if alpha > 0:
-                    # Animate upward
-                    y_offset = -elapsed // 10
-                    x, y = self.multiplier_text_pos
-                    y += y_offset
-                    
-                    # Draw multiplier text with glow effect
-                    if self.score_multiplier > 1.0:
-                        multiplier_str = f"x{self.score_multiplier:.1f}!"
-                        color = YELLOW if self.score_multiplier >= 2.0 else GREEN
-                        
-                        # Glow effect
-                        for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
-                            glow_text = self.small_font.render(multiplier_str, True, (color[0]//3, color[1]//3, color[2]//3))
-                            self.screen.blit(glow_text, (x - glow_text.get_width()//2 + offset[0], y + offset[1]))
-                        
-                        # Main text
-                        main_text = self.small_font.render(multiplier_str, True, color)
-                        self.screen.blit(main_text, (x - main_text.get_width()//2, y))
-            else:
-                self.multiplier_display_time = 0
-
-    def draw_pause_screen(self):
-        overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        self.screen.blit(overlay, (0, 0))
-        
-        box = pg.Surface((350, 250), pg.SRCALPHA)
-        box.fill((20, 20, 30, 240))
-        pg.draw.rect(box, (255, 255, 255, 50), (0, 0, 350, 250), 3, border_radius=15)
-        self.screen.blit(box, (WIDTH // 2 - 175, HEIGHT // 2 - 125))
-        
-        title = self.font.render("PAUSED", True, YELLOW)
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 100))
-        
-        score = self.small_font.render(f"Score: {self.score}", True, WHITE)
-        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 50))
-        
-        level = self.small_font.render(f"Level: {self.level}", True, WHITE)
-        self.screen.blit(level, (WIDTH // 2 - level.get_width() // 2, HEIGHT // 2 - 20))
-        
-        restart_text = self.tiny_font.render("Press R to restart", True, GRAY)
-        self.screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 20))
-        
-        resume_text = self.tiny_font.render("Press P or ESC to resume", True, GRAY)
-        self.screen.blit(resume_text, (WIDTH // 2 - resume_text.get_width() // 2, HEIGHT // 2 + 45))
-        
-        self.restart_button.draw(self.screen, self.small_font)
-
-    def draw_game_over(self):
-        overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        self.screen.blit(overlay, (0, 0))
-        
-        # Larger box to fit all buttons
-        box = pg.Surface((450, 380), pg.SRCALPHA)
-        box.fill((20, 20, 30, 240))
-        pg.draw.rect(box, (255, 0, 0, 80), (0, 0, 450, 380), 3, border_radius=15)
-        self.screen.blit(box, (WIDTH // 2 - 225, HEIGHT // 2 - 190))
-        
-        title = self.font.render("GAME OVER", True, RED)
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 170))
-        
-        score = self.small_font.render(f"Final Score: {self.score}", True, WHITE)
-        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 120))
-        
-        level = self.small_font.render(f"Reached Level: {self.level}", True, CYAN)
-        self.screen.blit(level, (WIDTH // 2 - level.get_width() // 2, HEIGHT // 2 - 90))
-        
-        high_score = self.get_high_score()
-        if self.score >= high_score:
-            new_record = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(new_record, (WIDTH // 2 - new_record.get_width() // 2, HEIGHT // 2 - 60))
-        else:
-            hs_text = self.tiny_font.render(f"High Score: {high_score}", True, GRAY)
-            self.screen.blit(hs_text, (WIDTH // 2 - hs_text.get_width() // 2, HEIGHT // 2 - 55))
-        
-        # Button area
-        button_y_start = HEIGHT // 2 - 20
-        button_spacing = 60
-        
-        # Restart button
-        restart_btn = Button(WIDTH // 2 - 100, button_y_start, 200, 45, "RESTART")
-        restart_btn.draw(self.screen, self.small_font)
-        
-        # Return to Menu button
-        menu_btn = Button(WIDTH // 2 - 100, button_y_start + button_spacing, 200, 45, "MAIN MENU")
-        menu_btn.draw(self.screen, self.small_font)
-        
-        # Quit button
-        quit_btn = Button(WIDTH // 2 - 100, button_y_start + button_spacing * 2, 200, 45, "QUIT")
-        quit_btn.draw(self.screen, self.small_font)
-        
-        # Keyboard hint
-        hint_text = self.tiny_font.render("Press R to restart | ESC for menu", True, GRAY)
-        self.screen.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, button_y_start + button_spacing * 3 + 10))
-
-    def get_high_score(self):
+    def _get_high_score(self):
         try:
-            with open("highscore.txt", "r") as f:
-                return int(f.read())
-        except:
+            with open("highscore.txt") as f:
+                return int(f.read().strip())
+        except Exception:
             return 0
 
-    def save_high_score(self):
+    def _save_high_score(self):
         with open("highscore.txt", "w") as f:
-            f.write(str(max(self.score, self.get_high_score())))
-
-    def return_to_menu(self):
-        """Return to main menu from game over screen"""
-        self.save_high_score()
-        self.in_menu = True
-        self.game_over = False
-        self.paused = False
-        self.score = 0
-        self.level = 1
-        self.obstacles = []
-        self.coins = []
-        # Reset player to current selected skin
-        self.player_color = CAR_SKINS[self.selected_skin]["color"]
-        self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        self.base_speed = diff_settings["base_speed"]
-        self.road = Road(self.base_speed)
-        self.obstacle_frequency = diff_settings["obstacle_freq"]
-        self.clock_speed = 1.0
-        if self.current_music:
-            pg.mixer.music.play(-1)
-
-    def reset_game(self):
-        self.save_high_score()
-        self.player_color = CAR_SKINS[self.selected_skin]["color"]
-        self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
-        self.obstacles = []
-        self.coins = []
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        self.base_speed = diff_settings["base_speed"]
-        self.road = Road(self.base_speed)
-        self.score = 0
-        self.level = 1
-        self.game_over = False
-        self.paused = False
-        self.last_obstacle_time = pg.time.get_ticks()
-        self.last_coin_time = pg.time.get_ticks()
-        self.obstacle_frequency = diff_settings["obstacle_freq"]
-        self.clock_speed = 1.0
-        # Reset multiplier
-        self.score_multiplier = 1.0
-        self.multiplier_timer = 0
-        self.multiplier_display_time = 0
-        self.consecutive_actions = 0
-        if self.current_music:
-            if not self.music_muted:
-                pg.mixer.music.play(-1)
+            f.write(str(max(self.score, self._get_high_score())))
 
     def run(self):
         while True:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(FPS)
+            dt = min(self.clock.tick(FPS) / 1000.0, 0.05)
+            self._handle_events()
+            self._update(dt)
+            self._draw()
 
+    def _handle_events(self):
+        for ev in pg.event.get():
+            if ev.type == pg.QUIT:
+                self.music.stop()
+                pg.quit()
+                sys.exit()
 
-class Button:
-    def __init__(self, x, y, width, height, text):
-        self.rect = pg.Rect(x, y, width, height)
-        self.text = text
-        self.color = (50, 180, 80)
-        self.hover_color = (80, 220, 100)
-        self.shadow = pg.Surface((width, height), pg.SRCALPHA)
-        self.shadow.fill((0, 0, 0, 50))
+            if ev.type == pg.MOUSEBUTTONDOWN and ev.button == 1:
+                pos = ev.pos
+                if self.state == "menu":
+                    self._handle_menu_click(pos)
+                elif self.state == "playing":
+                    if self.btn_pause.clicked(pos):
+                        self.state = "paused"
+                        self.music.pause()
+                    if self.btn_sound.clicked(pos):
+                        self.music.toggle_mute()
+                        self.btn_sound.text = "SFX: OFF" if self.music.muted else "SFX: ON"
+                elif self.state == "paused":
+                    if self.btn_pause.clicked(pos):
+                        self.state = "playing"
+                        self.music.unpause()
+                    if self.btn_restart.clicked(pos):
+                        self._reset_state()
+                        self.state = "playing"
+                        self.music.play()
+                    if self.btn_menu.clicked(pos):
+                        self._save_high_score()
+                        self._reset_state()
+                        self.state = "menu"
+                        self.music.play()
+                elif self.state == "gameover":
+                    if self.btn_restart.clicked(pos):
+                        self._reset_state()
+                        self.state = "playing"
+                        self.music.play()
+                    if self.btn_menu.clicked(pos):
+                        self._save_high_score()
+                        self._reset_state()
+                        self.state = "menu"
+                        self.music.play()
+                    if self.btn_quit.clicked(pos):
+                        self._save_high_score()
+                        self.music.stop()
+                        pg.quit()
+                        sys.exit()
 
-    def draw(self, screen, font):
-        mouse_pos = pg.mouse.get_pos()
-        color = self.hover_color if self.rect.collidepoint(mouse_pos) else self.color
-        screen.blit(self.shadow, (self.rect.x + 3, self.rect.y + 3))
-        pg.draw.rect(screen, color, self.rect, border_radius=8)
-        pg.draw.rect(screen, (255, 255, 255, 80), self.rect, 2, border_radius=8)
-        text_shadow = font.render(self.text, True, (0, 0, 0, 100))
-        text = font.render(self.text, True, WHITE)
-        text_rect = text.get_rect(center=self.rect.center)
-        screen.blit(text_shadow, (text_rect.x + 2, text_rect.y + 2))
-        screen.blit(text, text_rect)
+            if ev.type == pg.KEYDOWN:
+                if ev.key in (pg.K_p, pg.K_ESCAPE):
+                    if self.state == "playing":
+                        self.state = "paused"
+                        self.music.pause()
+                    elif self.state == "paused":
+                        self.state = "playing"
+                        self.music.unpause()
+                    elif self.state == "gameover":
+                        self._save_high_score()
+                        self._reset_state()
+                        self.state = "menu"
+                        self.music.play()
+                if ev.key == pg.K_r and self.state in ("gameover", "paused"):
+                    self._reset_state()
+                    self.state = "playing"
+                    self.music.play()
 
-    def is_clicked(self, pos):
-        return self.rect.collidepoint(pos)
+    def _handle_menu_click(self, pos):
+        for i, diff in enumerate(["Easy", "Medium", "Hard"]):
+            if pg.Rect(WIDTH // 2 - 90, 138 + i * 46, 180, 36).collidepoint(pos):
+                self.selected_diff = diff
+
+        if pg.Rect(WIDTH // 2 - 145, 345, 40, 40).collidepoint(pos):
+            self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
+        if pg.Rect(WIDTH // 2 + 105, 345, 40, 40).collidepoint(pos):
+            self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
+
+        self.btn_play.rect.y = 470
+        if self.btn_play.clicked(pos):
+            self._reset_state()
+            self.state = "playing"
+            self.music.play()
+
+    def _update(self, dt):
+        self.music.update()
+        if self.state != "playing":
+            return
+
+        keys = pg.key.get_pressed()
+        self.player.update(dt, keys)
+        self.road.scroll_speed = self.scroll_speed
+        self.road.update(dt)
+
+        diff = DIFFICULTY[self.selected_diff]
+
+        self.obs_timer += dt
+        if self.obs_timer >= self.obs_interval:
+            self.obs_timer = 0.0
+            self._spawn_obstacle(diff)
+
+        self.coin_timer += dt
+        if self.coin_timer >= COIN_INTERVAL:
+            self.coin_timer = 0.0
+            self.coins.append(Coin(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.9))
+
+        player_rect = self.player.get_rect()
+
+        for car in self.obs_cars[:]:
+            if car.update(dt):
+                self.obs_cars.remove(car)
+                self._on_passed()
+                continue
+            if car.get_rect().colliderect(player_rect):
+                self._trigger_gameover()
+                return
+
+        for obj in self.obs_misc[:]:
+            if obj.update(dt):
+                self.obs_misc.remove(obj)
+                self._on_passed()
+                continue
+            if obj.get_rect().colliderect(player_rect):
+                self._trigger_gameover()
+                return
+
+        for coin in self.coins[:]:
+            if coin.update(dt):
+                self.coins.remove(coin)
+                continue
+            if coin.get_rect().colliderect(player_rect):
+                self.coins.remove(coin)
+                self._on_coin(int(coin.x), int(coin.y))
+
+        self.combo_timer += dt
+        if self.combo_timer >= MULTIPLIER_DECAY:
+            self.combo_timer = 0.0
+            if self.combo > 0:
+                self.combo = max(0, self.combo - 1)
+                self._recalc_multiplier()
+
+        if self.fb_timer > 0:
+            self.fb_timer -= dt
+
+        level_threshold = 5 + self.level * 3
+        if self.score >= level_threshold * self.level:
+            self.level += 1
+            self.scroll_speed = min(self.scroll_speed + diff["speed_inc"], diff["base_speed"] * 2.5)
+            self.obs_interval = max(0.55, self.obs_interval - 0.05)
+            self.speed_pct = int(self.scroll_speed / diff["base_speed"] * 100)
+
+    def _spawn_obstacle(self, diff):
+        min_spd, max_spd = diff["obs_speed"]
+        spd = random.uniform(min_spd, max_spd)
+        occupied = {c.lane for c in self.obs_cars}
+        lanes = [l for l in range(4) if l not in occupied] or list(range(4))
+        lane = random.choice(lanes)
+        roll = random.random()
+        if roll < 0.55:
+            self.obs_cars.append(ObstacleCar(lane, spd))
+        elif roll < 0.75:
+            self.obs_misc.append(Cone(LANE_CENTERS[lane] - Cone.WIDTH // 2, spd))
+        elif roll < 0.88:
+            self.obs_misc.append(Barrier(LANE_CENTERS[lane] - Barrier.WIDTH // 2, spd))
+        else:
+            self.obs_misc.append(Pothole(LANE_CENTERS[lane], spd))
+
+    def _on_passed(self):
+        self.combo += 1
+        self._recalc_multiplier()
+        self.score += int(1 * self.multiplier)
+
+    def _on_coin(self, x, y):
+        self.combo += 1
+        self._recalc_multiplier()
+        gain = int(5 * self.multiplier)
+        self.score += gain
+        self.fb_text = f"+{gain}"
+        self.fb_pos = (x, y)
+        self.fb_timer = 0.9
+
+    def _recalc_multiplier(self):
+        if self.combo >= 20:
+            self.multiplier = 3.0
+        elif self.combo >= 15:
+            self.multiplier = 2.5
+        elif self.combo >= 10:
+            self.multiplier = 2.0
+        elif self.combo >= 5:
+            self.multiplier = 1.5
+        else:
+            self.multiplier = 1.0
+
+    def _trigger_gameover(self):
+        self.state = "gameover"
+        self._save_high_score()
+        self.music.fadeout(1500)
+
+    def _draw(self):
+        self.screen.fill(BLACK)
+        if self.state == "menu":
+            self._draw_menu()
+        else:
+            self.road.draw(self.screen)
+            for car in self.obs_cars:
+                car.draw(self.screen)
+            for obj in self.obs_misc:
+                obj.draw(self.screen)
+            for coin in self.coins:
+                coin.draw(self.screen)
+            self.player.draw(self.screen)
+            self.hud.draw(self.screen, self.score, self.level,
+                          self.speed_pct, self.selected_diff, self.multiplier)
+            self.btn_pause.draw(self.screen, self.fonts[2])
+            self.btn_sound.draw(self.screen, self.fonts[2])
+            self._draw_feedback()
+            if self.state == "paused":
+                self._draw_pause()
+            elif self.state == "gameover":
+                self._draw_gameover()
+        pg.display.flip()
+
+    def _draw_feedback(self):
+        if self.fb_timer <= 0 or not self.fb_text:
+            return
+        alpha = int(255 * (self.fb_timer / 0.9))
+        y = self.fb_pos[1] - int((0.9 - self.fb_timer) * 60)
+        surf = self.fonts[1].render(self.fb_text, True, YELLOW)
+        surf.set_alpha(alpha)
+        self.screen.blit(surf, surf.get_rect(center=(self.fb_pos[0], y)))
+
+    def _draw_menu(self):
+        f_main, f_small, f_tiny = self.fonts
+        for y in range(HEIGHT):
+            shade = 8 + int(18 * y / HEIGHT)
+            pg.draw.line(self.screen, (shade, shade, shade + 6), (0, y), (WIDTH, y))
+
+        title = f_main.render("SLEEK STREET RACER", True, YELLOW)
+        sh = f_main.render("SLEEK STREET RACER", True, (70, 70, 0))
+        self.screen.blit(sh, (WIDTH // 2 - title.get_width() // 2 + 3, 38))
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 35))
+
+        bg = pg.Surface((440, 460), pg.SRCALPHA)
+        bg.fill((0, 0, 0, 170))
+        pg.draw.rect(bg, (255, 255, 255, 30), (0, 0, 440, 460), 2, border_radius=12)
+        self.screen.blit(bg, (WIDTH // 2 - 220, 115))
+
+        diff_lbl = f_small.render("Difficulty", True, WHITE)
+        self.screen.blit(diff_lbl, (WIDTH // 2 - diff_lbl.get_width() // 2, 122))
+        for i, d in enumerate(["Easy", "Medium", "Hard"]):
+            r = pg.Rect(WIDTH // 2 - 90, 138 + i * 46, 180, 36)
+            sel = d == self.selected_diff
+            pg.draw.rect(self.screen, GREEN if sel else (70, 70, 75), r, border_radius=7)
+            pg.draw.rect(self.screen, WHITE, r, 1 if not sel else 2, border_radius=7)
+            t = f_small.render(d, True, WHITE)
+            self.screen.blit(t, t.get_rect(center=r.center))
+
+        skin_lbl = f_small.render("Car Skin", True, WHITE)
+        self.screen.blit(skin_lbl, (WIDTH // 2 - skin_lbl.get_width() // 2, 296))
+
+        skin = CAR_SKINS[self.selected_skin]
+        px, py = WIDTH // 2 - 24, 315
+        pbg = pg.Surface((96, 108), pg.SRCALPHA)
+        pbg.fill((25, 25, 35, 200))
+        pg.draw.rect(pbg, (255, 255, 255, 30), (0, 0, 96, 108), 1, border_radius=6)
+        self.screen.blit(pbg, (px - 24, py - 5))
+        draw_car(self.screen, px, py, 48, 88, skin["color"], CYAN, skin["type"], player=True)
+
+        mouse = pg.mouse.get_pos()
+        for rect, sym in [
+            (pg.Rect(WIDTH // 2 - 145, 345, 40, 40), "<"),
+            (pg.Rect(WIDTH // 2 + 105, 345, 40, 40), ">"),
+        ]:
+            col = GREEN if rect.collidepoint(mouse) else (70, 70, 75)
+            pg.draw.rect(self.screen, col, rect, border_radius=6)
+            pg.draw.rect(self.screen, WHITE, rect, 1, border_radius=6)
+            t = f_small.render(sym, True, WHITE)
+            self.screen.blit(t, t.get_rect(center=rect.center))
+
+        name_t = f_tiny.render(skin["name"], True, YELLOW)
+        self.screen.blit(name_t, (WIDTH // 2 - name_t.get_width() // 2, 425))
+
+        hs = f_tiny.render(f"High Score: {self._get_high_score()}", True, GRAY)
+        self.screen.blit(hs, (WIDTH // 2 - hs.get_width() // 2, 445))
+
+        self.btn_play.rect.y = 470
+        self.btn_play.draw(self.screen, f_small)
+
+        hint = f_tiny.render("Arrow keys to steer  |  P pause  |  R restart", True, GRAY)
+        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, 530))
+
+    def _draw_overlay(self, title_text, title_color, box_h, box_border_color):
+        overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        overlay.fill((0, 0, 0, 195))
+        self.screen.blit(overlay, (0, 0))
+        bx, by = WIDTH // 2 - 200, HEIGHT // 2 - box_h // 2
+        box = pg.Surface((400, box_h), pg.SRCALPHA)
+        box.fill((18, 18, 28, 245))
+        pg.draw.rect(box, box_border_color, (0, 0, 400, box_h), 3, border_radius=14)
+        self.screen.blit(box, (bx, by))
+        t = self.fonts[0].render(title_text, True, title_color)
+        self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + 18))
+        return by
+
+    def _draw_pause(self):
+        f_small, f_tiny = self.fonts[1], self.fonts[2]
+        by = self._draw_overlay("PAUSED", YELLOW, 260, (255, 255, 255, 40))
+        for text, col, dy in [
+            (f"Score: {self.score}", WHITE, 62),
+            (f"Level:  {self.level}", CYAN, 90),
+        ]:
+            t = f_small.render(text, True, col)
+            self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
+        for text, dy in [("P / ESC to resume", 125), ("R to restart", 143)]:
+            t = f_tiny.render(text, True, GRAY)
+            self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
+        self.btn_restart.rect.topleft = (WIDTH // 2 - 90, by + 168)
+        self.btn_menu.rect.topleft = (WIDTH // 2 - 90, by + 220)
+        self.btn_restart.draw(self.screen, f_small)
+        self.btn_menu.draw(self.screen, f_small)
+
+    def _draw_gameover(self):
+        f_small, f_tiny = self.fonts[1], self.fonts[2]
+        hs = self._get_high_score()
+        by = self._draw_overlay("GAME OVER", RED, 340, (200, 30, 30, 80))
+        for text, col, dy in [
+            (f"Score: {self.score}", WHITE, 62),
+            (f"Level: {self.level}", CYAN, 90),
+        ]:
+            t = f_small.render(text, True, col)
+            self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + dy))
+        t = (f_small.render("NEW HIGH SCORE!", True, YELLOW) if self.score >= hs
+             else f_tiny.render(f"Best: {hs}", True, GRAY))
+        self.screen.blit(t, (WIDTH // 2 - t.get_width() // 2, by + 118))
+        self.btn_restart.rect.topleft = (WIDTH // 2 - 90, by + 148)
+        self.btn_menu.rect.topleft = (WIDTH // 2 - 90, by + 200)
+        self.btn_quit.rect.topleft = (WIDTH // 2 - 90, by + 252)
+        self.btn_restart.draw(self.screen, f_small)
+        self.btn_menu.draw(self.screen, f_small)
+        self.btn_quit.draw(self.screen, f_small)
+        hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
+        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 308))
 
 
 if __name__ == "__main__":
