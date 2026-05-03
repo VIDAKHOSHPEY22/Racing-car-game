@@ -26,14 +26,14 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!have fun
 ## 🚦 Quick Start
 
 ```bash
-# Clone the repository
+# Clone repo
 git clone https://github.com/VIDAKHOSHPEY22/Racing-car-game.git
 cd Racing-car-game
 
 # Install dependencies
 pip install pygame==2.6.1
 
-# Run the game
+# Execution of game
 python atari.py
 ```
 ---
