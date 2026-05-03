@@ -769,7 +769,7 @@ class Game:
         self.btn_play.rect.y = 470
         self.btn_play.draw(self.screen, f_small)
 
-        hint = f_tiny.render("Arrow keys to steer  |  P pause  |  R restart", True, GRAY)
+        hint = f_tiny.render("Use arrow keys to steer  |  P - Pause  |  R - Restart", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, 530))
 
     def _draw_overlay(self, title_text, title_color, box_h, box_border_color):
@@ -823,7 +823,6 @@ class Game:
         self.btn_quit.draw(self.screen, f_small)
         hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 308))
-
 
 if __name__ == "__main__":
     game = Game()
