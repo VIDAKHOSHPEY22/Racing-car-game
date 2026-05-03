@@ -151,8 +151,17 @@ pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
         <sub><b>Mukesh Lilawat</b></sub>
       </a>
     </td>
+        <td align="center">
+      <a href="https://github.com/TheM1ddleM1n">
+        <img src="https://github.com/TheM1ddleM1n.png?size=100" width="100px;" alt="TheM1ddleM1n"/>
+        <br />
+        <sub><b>TheM1ddleM1n</b></sub>
+      </a>
+    </td>
   </tr>
 </table>
+
+
 
 <p align="center">
   <em>Thank you for your valuable contributions to this project! 🙏</em>
