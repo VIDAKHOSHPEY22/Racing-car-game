@@ -1,4 +1,4 @@
-<!--hey guys   i will be glad if you fix it it will be  fun and star ⭐ me 😜--> 
+<!--hey guys   i will be glad if you fix it it will be  fun and star  ⭐ me 😜--> 
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
@@ -26,14 +26,14 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!have fun
 ## 🚦 Quick Start
 
 ```bash
-# Clone the repository
+# Clone repo
 git clone https://github.com/VIDAKHOSHPEY22/Racing-car-game.git
 cd Racing-car-game
 
 # Install dependencies
 pip install pygame==2.6.1
 
-# Run the game
+# Execution of game
 python atari.py
 ```
 ---
@@ -151,8 +151,17 @@ pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
         <sub><b>Mukesh Lilawat</b></sub>
       </a>
     </td>
+        <td align="center">
+      <a href="https://github.com/TheM1ddleM1n">
+        <img src="https://github.com/TheM1ddleM1n.png?size=100" width="100px;" alt="TheM1ddleM1n"/>
+        <br />
+        <sub><b>TheM1ddleM1n</b></sub>
+      </a>
+    </td>
   </tr>
 </table>
+
+
 
 <p align="center">
   <em>Thank you for your valuable contributions to this project! 🙏</em>

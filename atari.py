@@ -910,7 +910,7 @@ class Game:
     def _spawn_obstacle(self, diff):
         min_spd, max_spd = diff["obs_speed"]
         spd = random.uniform(min_spd, max_spd)
-        occupied = {o.lane for o in self.obstacles if isinstance(o, ObstacleCar)}
+        occupied = {c.lane for c in self.obs_cars}
         lanes = [i for i in range(4) if i not in occupied] or list(range(4))
         lane = random.choice(lanes)
         roll = random.random()
@@ -1044,7 +1044,7 @@ class Game:
         self.btn_play.rect.y = 470
         self.btn_play.draw(self.screen, f_small)
 
-        hint = f_tiny.render("Arrow keys to steer  |  P pause  |  R restart", True, GRAY)
+        hint = f_tiny.render("Use arrow keys to steer  |  P - Pause  |  R - Restart", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, 530))
 
     def _draw_overlay_screen(self, title_text, title_color, box_h, border_col, content_fn):
@@ -1096,7 +1096,6 @@ class Game:
         self.btn_quit.draw(self.screen, f_small)
         hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 318))
-
 
 if __name__ == "__main__":
     game = Game()
