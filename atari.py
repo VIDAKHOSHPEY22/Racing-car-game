@@ -5,7 +5,6 @@ import os
 import math
 
 pg.init()
-pg.mixer.init()
 
 WIDTH, HEIGHT = 800, 600
 FPS = 60
@@ -61,71 +60,6 @@ OBSTACLE_COLORS = [
 
 def clamp(val, lo, hi):
     return max(lo, min(hi, val))
-
-
-def load_music_playlist():
-    folder = "music"
-    try:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-            return []
-        files = [
-            os.path.join(folder, f)
-            for f in os.listdir(folder)
-            if f.lower().endswith((".mp3", ".wav", ".ogg"))
-        ]
-        random.shuffle(files)
-        return files
-    except Exception:
-        return []
-
-
-class MusicPlayer:
-    def __init__(self):
-        self.playlist = load_music_playlist()
-        self.index = 0
-        self.muted = False
-        self.playing = False
-
-    def play(self):
-        if not self.playlist:
-            return
-        track = self.playlist[self.index % len(self.playlist)]
-        try:
-            pg.mixer.music.load(track)
-            pg.mixer.music.set_volume(0.0 if self.muted else 0.5)
-            pg.mixer.music.play()
-            self.playing = True
-        except Exception:
-            self.next_track()
-
-    def next_track(self):
-        if not self.playlist:
-            return
-        self.index = (self.index + 1) % len(self.playlist)
-        self.play()
-
-    def update(self):
-        if self.playing and not pg.mixer.music.get_busy() and not self.muted:
-            self.next_track()
-
-    def pause(self):
-        pg.mixer.music.pause()
-
-    def unpause(self):
-        if not self.muted:
-            pg.mixer.music.unpause()
-
-    def stop(self):
-        pg.mixer.music.stop()
-        self.playing = False
-
-    def toggle_mute(self):
-        self.muted = not self.muted
-        pg.mixer.music.set_volume(0.0 if self.muted else 0.5)
-
-    def fadeout(self, ms=1500):
-        pg.mixer.music.fadeout(ms)
 
 
 def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=False):
@@ -429,7 +363,6 @@ class Game:
         f_tiny = pg.font.Font(None, 22)
         self.fonts = (f_main, f_small, f_tiny)
 
-        self.music = MusicPlayer()
         self.selected_skin = 0
         self.selected_diff = "Medium"
         self.state = "menu"
@@ -437,7 +370,6 @@ class Game:
         self.hud = HUD(self.fonts)
         self.btn_play = Button(WIDTH // 2 - 100, 0, 200, 52, "START RACE")
         self.btn_pause = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
-        self.btn_sound = Button(WIDTH - 115, 52, 100, 32, "SFX: ON", (60, 60, 80))
         self.btn_restart = Button(WIDTH // 2 - 90, HEIGHT // 2 + 40, 180, 46, "RESTART")
         self.btn_menu = Button(WIDTH // 2 - 90, HEIGHT // 2 + 96, 180, 46, "MAIN MENU", (60, 80, 160))
         self.btn_quit = Button(WIDTH // 2 - 90, HEIGHT // 2 + 152, 180, 46, "QUIT", (160, 50, 50))
@@ -487,7 +419,6 @@ class Game:
     def _handle_events(self):
         for ev in pg.event.get():
             if ev.type == pg.QUIT:
-                self.music.stop()
                 pg.quit()
                 sys.exit()
 
@@ -498,36 +429,26 @@ class Game:
                 elif self.state == "playing":
                     if self.btn_pause.clicked(pos):
                         self.state = "paused"
-                        self.music.pause()
-                    if self.btn_sound.clicked(pos):
-                        self.music.toggle_mute()
-                        self.btn_sound.text = "SFX: OFF" if self.music.muted else "SFX: ON"
                 elif self.state == "paused":
                     if self.btn_pause.clicked(pos):
                         self.state = "playing"
-                        self.music.unpause()
                     if self.btn_restart.clicked(pos):
                         self._reset_state()
                         self.state = "playing"
-                        self.music.play()
                     if self.btn_menu.clicked(pos):
                         self._save_high_score()
                         self._reset_state()
                         self.state = "menu"
-                        self.music.play()
                 elif self.state == "gameover":
                     if self.btn_restart.clicked(pos):
                         self._reset_state()
                         self.state = "playing"
-                        self.music.play()
                     if self.btn_menu.clicked(pos):
                         self._save_high_score()
                         self._reset_state()
                         self.state = "menu"
-                        self.music.play()
                     if self.btn_quit.clicked(pos):
                         self._save_high_score()
-                        self.music.stop()
                         pg.quit()
                         sys.exit()
 
@@ -535,19 +456,15 @@ class Game:
                 if ev.key in (pg.K_p, pg.K_ESCAPE):
                     if self.state == "playing":
                         self.state = "paused"
-                        self.music.pause()
                     elif self.state == "paused":
                         self.state = "playing"
-                        self.music.unpause()
                     elif self.state == "gameover":
                         self._save_high_score()
                         self._reset_state()
                         self.state = "menu"
-                        self.music.play()
                 if ev.key == pg.K_r and self.state in ("gameover", "paused"):
                     self._reset_state()
                     self.state = "playing"
-                    self.music.play()
 
     def _handle_menu_click(self, pos):
         for i, diff in enumerate(["Easy", "Medium", "Hard"]):
@@ -563,10 +480,8 @@ class Game:
         if self.btn_play.clicked(pos):
             self._reset_state()
             self.state = "playing"
-            self.music.play()
 
     def _update(self, dt):
-        self.music.update()
         if self.state != "playing":
             return
 
@@ -677,7 +592,6 @@ class Game:
     def _trigger_gameover(self):
         self.state = "gameover"
         self._save_high_score()
-        self.music.fadeout(1500)
 
     def _draw(self):
         self.screen.fill(BLACK)
@@ -695,7 +609,6 @@ class Game:
             self.hud.draw(self.screen, self.score, self.level,
                           self.speed_pct, self.selected_diff, self.multiplier)
             self.btn_pause.draw(self.screen, self.fonts[2])
-            self.btn_sound.draw(self.screen, self.fonts[2])
             self._draw_feedback()
             if self.state == "paused":
                 self._draw_pause()
