@@ -23,7 +23,7 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!have fun
 
 ---
 
-## 🚦 Quick Start
+## 🚦 Quick Start using Python and Git
 
 ```bash
 # Clone repo
@@ -72,7 +72,7 @@ Racing-car-game/
 ├── assets/               # Images, icons, car skins, fonts, etc.
 ├── music/                # Background music & sound effects
 ├── screenshots/          # Game screenshots & GIFs
-├── .gitignore
+├── .gitignore            # tells Git which files and folders to ignore (not track)
 ├── atari.py              # Main game (run this!)
 ├── highscore.txt         # Stores your best score automatically
 ├── requirement.txt       # Dependencies (just pygame)
@@ -174,9 +174,9 @@ Thanks to everyone who contributed with pull requests, bug reports, and suggesti
 ## **📬 Need My Attention?**
 
 <p>
-  <strong>Sometimes I might miss your PRs or issues..😣😖😢.</strong><br>
+  <strong>Sometimes I might miss your PRs or issues.. 😣😖😢.</strong><br>
   If you need me to check something important or want to help make this game even better,<br>
-  feel free to email me directly!😍
+  please feel free to email me directly! 😍
 </p>
 
 <p style="font-size: 1.2em; color: #E74C3C;">
@@ -184,7 +184,7 @@ Thanks to everyone who contributed with pull requests, bug reports, and suggesti
 </p>
 
 <p style="font-size: 0.9em; color: #7F8C8D;">
-  <em>Let's work together to improve this game! Your feedback and contributions are always welcome.</em>
+  <em>Let's work together to improve this racing game! Your feedback and contributions are always welcome.</em>
 </p>
 
 </div>
