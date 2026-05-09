@@ -1,12 +1,10 @@
-## how to complete this ?
+## Bugs in atari.py
 
-- [ ] first I have a bug for passing cars 
+- [ ] Bug for passing cars 
 
 - [ ] Improve appearance
 
 - [ ] Being a game standard
-
-- [ ] add more songs
 
 - [ ] Adding obstacles
 
@@ -16,10 +14,9 @@
 
 - [ ] turn it into live demo
 
-- [ ] and it's up to you if you want to fix it 🥺
-
 ## it's good for you that you are beginners or love python 💪🏻💕
 
-- so keep going
-- work with this pytorch
-- don't forget to email me 🙂 
+- it's up to you if you want to fix it 🥺
+- work with pytorch/pygame etc
+- don't forget to email me 🙂
+- Or contact TheM1ddleM1n who will be happy to help!
