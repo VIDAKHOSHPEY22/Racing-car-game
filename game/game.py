@@ -84,6 +84,7 @@ class Game:
         self.exit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 310, 200, 45, "EXIT")
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
+        self.pause_menu_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 120, 160, 45, "MAIN MENU")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
         self.current_music = load_music()
@@ -117,6 +118,7 @@ class Game:
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
         self.paused = False
+        self.pause_button.text = "PAUSE"
         self.score_multiplier = 1.0
         self.multiplier_timer = 0
         self.multiplier_display_time = 0
@@ -223,6 +225,8 @@ class Game:
 
         if self.paused and self.restart_button.is_clicked(mouse_pos):
             self.reset_game()
+        if self.paused and self.pause_menu_button.is_clicked(mouse_pos):
+            self.return_to_menu()
 
     def handle_game_over_click(self, mouse_pos):
         button_y_start = HEIGHT // 2 - 20
@@ -243,6 +247,7 @@ class Game:
 
     def toggle_pause(self):
         self.paused = not self.paused
+        self.pause_button.text = "RESUME" if self.paused else "PAUSE"
         if self.paused:
             if not self.music_muted:
                 pg.mixer.music.pause()
@@ -650,27 +655,52 @@ class Game:
         overlay.fill((0, 0, 0, 200))
         self.screen.blit(overlay, (0, 0))
 
-        box = pg.Surface((350, 250), pg.SRCALPHA)
+        box_width = 350
+        box_height = 360
+        box_left = WIDTH // 2 - box_width // 2
+        box_top = HEIGHT // 2 - box_height // 2
+
+        box = pg.Surface((box_width, box_height), pg.SRCALPHA)
         box.fill((20, 20, 30, 240))
-        pg.draw.rect(box, (255, 255, 255, 50), (0, 0, 350, 250), 3, border_radius=15)
-        self.screen.blit(box, (WIDTH // 2 - 175, HEIGHT // 2 - 125))
+        pg.draw.rect(box, (255, 255, 255, 50), (0, 0, box_width, box_height), 3, border_radius=15)
+        self.screen.blit(box, (box_left, box_top))
+
+        title_y = box_top + 28
+        score_y = box_top + 92
+        stage_y = box_top + 127
+        restart_hint_y = box_top + 168
+        resume_hint_y = box_top + 192
+        menu_hint_y = box_top + 216
 
         title = self.font.render("PAUSED", True, YELLOW)
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 100))
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, title_y))
 
         score = self.small_font.render(f"Score: {self.score}", True, WHITE)
-        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 50))
+        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, score_y))
 
         stage = self.small_font.render(f"Stage: {self.stage}", True, WHITE)
-        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 20))
+        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, stage_y))
 
         restart_text = self.tiny_font.render("Press R to restart", True, GRAY)
-        self.screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 20))
+        self.screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, restart_hint_y))
 
         resume_text = self.tiny_font.render("Press P or ESC to resume", True, GRAY)
-        self.screen.blit(resume_text, (WIDTH // 2 - resume_text.get_width() // 2, HEIGHT // 2 + 45))
+        self.screen.blit(resume_text, (WIDTH // 2 - resume_text.get_width() // 2, resume_hint_y))
 
+        menu_text = self.tiny_font.render("Click Main Menu to return", True, GRAY)
+        self.screen.blit(menu_text, (WIDTH // 2 - menu_text.get_width() // 2, menu_hint_y))
+
+        button_gap = 14
+        buttons_height = self.restart_button.rect.height + button_gap + self.pause_menu_button.rect.height
+        buttons_top = box_top + box_height - buttons_height - 22
+
+        self.restart_button.rect.topleft = (WIDTH // 2 - self.restart_button.rect.width // 2, buttons_top)
+        self.pause_menu_button.rect.topleft = (
+            WIDTH // 2 - self.pause_menu_button.rect.width // 2,
+            buttons_top + self.restart_button.rect.height + button_gap,
+        )
         self.restart_button.draw(self.screen, self.small_font)
+        self.pause_menu_button.draw(self.screen, self.tiny_font)
 
     def draw_game_over(self):
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
