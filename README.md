@@ -1,4 +1,4 @@
-<!--hey guys i will be glad if you fix it it will be  fun and star  ⭐ me 😜--> 
+<!--hey guys i will be glad if you fix it it will be  fun and star ⭐ me 😜--> 
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
@@ -19,7 +19,7 @@
 
 ![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/start.jpg)
 
-A thrilling 2D racing experience where you dodge traffic at high speeds!have fun 😉 
+A thrilling 2D racing experience where you dodge traffic at high speeds!
 
 ---
 
@@ -45,8 +45,7 @@ python atari.py
 | ⏯️ **Pause / Resume**         | Press `P` anytime to pause and resume without losing your run               |
 | 🔄 **Instant Restart**         | Crash? Just hit `R` and get right back into the action                     |
 | 🎚️ **4 Difficulty Modes**     | Easy → Normal → Hard → Insane – speed and traffic increase dramatically    |
-| 🏆 **Enhanced Scoreboard**     | Beautiful new UI showing current score, multiplier, and all-time high score|
-| 🔊 **Sound & Music Toggle**    | Press `M` to turn sound effects and background music on/off                 |
+| 🏆 **Enhanced Scoreboard**     | Beautiful new UI showing current score, multiplier, and all-time high score |
 | ⚡ **Score Multiplier System**  | Survive longer → multiplier goes up → insane high scores possible!         |
 | 📈 **Progressive Speed**       | The longer you play, the faster everything gets                             |
 | 🛣️ **Dynamic Traffic**        | Randomly spawned enemy cars with realistic lane changes                     |
@@ -60,7 +59,6 @@ python atari.py
 | `←` `→`    | Move Left / Right          |
 | `P`        | Pause / Resume             |
 | `R`        | Restart Game               |
-| `M`        | Toggle Sound & Music       |
 | `ESC`      | Quit Game                  |
 
 ---
