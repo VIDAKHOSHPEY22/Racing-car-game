@@ -43,9 +43,9 @@ CAR_SKINS = [
 
 # Difficulty Settings
 DIFFICULTY_SETTINGS = {
-    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9)},
-    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12)},
-    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15)},
+    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9), "max_speed": 8, "cruise_speed_kmh": 70},
+    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12), "max_speed": 15, "cruise_speed_kmh": 90},
+    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15), "max_speed": 22, "cruise_speed_kmh": 110},
 }
 
 
@@ -93,7 +93,7 @@ class Coin:
 
 # Enhanced car class
 class Car:
-    def __init__(self, x, y, color, player=False, car_type="sedan"):
+    def __init__(self, x, y, color, player=False, car_type="sedan", max_speed=None):
         self.width = 50
         self.height = 90 if player else random.choice([80, 85, 90, 95])
         self.x = x
@@ -105,6 +105,16 @@ class Car:
         self.type = car_type if player else random.choice(["sedan", "truck", "suv"])
         self.road_boundary_left = 150
         self.road_boundary_right = WIDTH - 200
+        
+        # Player car acceleration system
+        if player:
+            self.current_speed = 0  # Dikey hız (yukarı hareket)
+            self.acceleration = 0.5  # Hızlanma katsayısı
+            self.max_speed = max_speed if max_speed is not None else 15  # Maksimum hız (difficulty üzerinden verilebilir)
+            self.deceleration = 0.02  # Taban yavaşlama (coasting)
+            self.friction_factor = 0.98  # Doğal akış için hızın yüzdesel azalması
+            self.brake_deceleration = 1.0  # Fren yapıldığında daha hızlı yavaşlama
+            self.min_forward_y = HEIGHT - 260  # Çok üste çıkmayı engelleyen yumuşak kamera sınırı
 
     def draw(self, screen):
         pg.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
@@ -135,6 +145,23 @@ class Car:
                 self.x = max(self.road_boundary_left, self.x - self.speed)
             if direction == "right":
                 self.x = min(self.road_boundary_right, self.x + self.speed)
+            
+            # Acceleration system
+            if direction == "up":
+                self.current_speed = min(self.current_speed + self.acceleration, self.max_speed)
+            elif direction == "decelerate":
+                # Natural coasting: exponential friction + tiny base drag.
+                self.current_speed = max(0, (self.current_speed * self.friction_factor) - self.deceleration)
+                if self.current_speed < 0.05:
+                    self.current_speed = 0
+            elif direction == "brake":
+                # Apply stronger deceleration when braking
+                self.current_speed = max(0, self.current_speed - self.brake_deceleration)
+            
+            # Update player position based on current speed
+            if self.current_speed > 0:
+                forward_step = self.current_speed * 0.35
+                self.y = max(self.min_forward_y, self.y - forward_step)
         else:
             self.y += self.speed
             return self.y > HEIGHT
@@ -192,7 +219,7 @@ class Game:
         self.selected_difficulty = "Medium"
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type, DIFFICULTY_SETTINGS[self.selected_difficulty]["max_speed"])
         self.obstacles = []
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         self.base_speed = diff_settings["base_speed"]
@@ -329,7 +356,7 @@ class Game:
         self.in_menu = False
         self.paused = False
         self.game_over = False
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type, DIFFICULTY_SETTINGS[self.selected_difficulty]["max_speed"])
         self.obstacles = []
         self.coins = []
         self.score = 0
@@ -351,6 +378,13 @@ class Game:
                 pg.mixer.music.play(-1)
 
     def update(self):
+        # Auto-pause when the game window loses focus (alt-tab/minimize).
+        if not pg.display.get_active() and not self.in_menu and not self.game_over:
+            if not self.paused:
+                self.paused = True
+                if self.current_music and not self.music_muted:
+                    pg.mixer.music.pause()
+
         if self.game_over or self.in_menu or self.paused:
             return
 
@@ -359,6 +393,14 @@ class Game:
             self.player.move("left")
         if keys[pg.K_RIGHT]:
             self.player.move("right")
+        # Acceleration
+        if keys[pg.K_UP] or keys[pg.K_w]:
+            self.player.move("up")
+        # Brake (stronger deceleration)
+        elif keys[pg.K_DOWN] or keys[pg.K_s]:
+            self.player.move("brake")
+        else:
+            self.player.move("decelerate")
 
         current_time = pg.time.get_ticks()
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
@@ -540,7 +582,7 @@ class Game:
         pg.draw.rect(preview_bg, (255, 255, 255, 30), (0, 0, 100, 110), 2, border_radius=5)
         self.screen.blit(preview_bg, (preview_x - 25, preview_y - 5))
         
-        preview_car = Car(preview_x, preview_y, self.player_color, True, self.player_type)
+        preview_car = Car(preview_x, preview_y, self.player_color, True, self.player_type, DIFFICULTY_SETTINGS[self.selected_difficulty]["max_speed"])
         preview_car.draw(self.screen)
         
         # Navigation arrows
@@ -577,7 +619,7 @@ class Game:
         
         # Instructions (compact)
         instructions = [
-            "← → to steer | P to pause | R to restart"
+            "← → to steer | ↑ W to accelerate | ↓ S to brake | P to pause | R to restart"
         ]
         for i, line in enumerate(instructions):
             text = self.tiny_font.render(line, True, GRAY)
@@ -608,12 +650,25 @@ class Game:
         level_text = self.small_font.render(f"Level: {self.level}", True, CYAN)
         self.screen.blit(level_text, (25, 55))
         
-        # Speed
-        speed_text = self.small_font.render(f"Speed: {int(self.clock_speed * 100)}%", True, GREEN)
+        # Show speed as baseline cruise + acceleration gain.
+        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
+        cruise_kmh = diff_settings.get("cruise_speed_kmh", 80)
+        accel_ratio = 0 if self.player.max_speed <= 0 else (self.player.current_speed / self.player.max_speed)
+        accel_kmh = int(accel_ratio * 80)
+        speed_kmh = cruise_kmh + accel_kmh
+        if self.player.current_speed < 0.05:
+            speed_label = f"Speed: {speed_kmh} km/h (Cruise)"
+        else:
+            speed_label = f"Speed: {speed_kmh} km/h"
+        speed_text = self.small_font.render(speed_label, True, GREEN)
         self.screen.blit(speed_text, (25, 85))
         
-        # Difficulty indicator
-        diff_indicator = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
+        # Difficulty indicator + game pace
+        diff_indicator = self.tiny_font.render(
+            f"Mode: {self.selected_difficulty} | Pace: x{self.clock_speed:.2f}",
+            True,
+            YELLOW,
+        )
         self.screen.blit(diff_indicator, (25, 115))
         
         # Score multiplier display
@@ -767,7 +822,7 @@ class Game:
         # Reset player to current selected skin
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type, DIFFICULTY_SETTINGS[self.selected_difficulty]["max_speed"])
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         self.base_speed = diff_settings["base_speed"]
         self.road = Road(self.base_speed)
@@ -780,7 +835,7 @@ class Game:
         self.save_high_score()
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
-        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
+        self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type, DIFFICULTY_SETTINGS[self.selected_difficulty]["max_speed"])
         self.obstacles = []
         self.coins = []
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
