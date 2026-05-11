@@ -28,6 +28,9 @@ ROAD_RIGHT = 650
 COIN_INTERVAL = 1.8
 MULTIPLIER_DECAY = 3.5
 
+MAX_LIVES = 3
+INVINCIBILITY_DURATION = 2.2
+
 CAR_SKINS = [
     {"name": "Blue Racer",       "color": BLUE,   "type": "sedan"},
     {"name": "Red Speedster",    "color": RED,     "type": "sedan"},
@@ -173,6 +176,68 @@ class Pothole:
         )
 
 
+class OilSlick:
+    WIDTH = 54
+    HEIGHT = 28
+
+    def __init__(self, x, speed):
+        self.x = x
+        self.y = -self.HEIGHT
+        self.speed = speed
+        self.angle = 0.0
+
+    def update(self, dt):
+        self.y += self.speed * dt
+        self.angle += dt * 1.2
+        return self.y > HEIGHT
+
+    def draw(self, surface):
+        t = self.angle
+        colors = [
+            (clamp(int(60 + 40 * math.sin(t)), 0, 255),
+             clamp(int(180 + 40 * math.sin(t + 2.1)), 0, 255),
+             clamp(int(60 + 40 * math.sin(t + 4.2)), 0, 255), 190),
+            (clamp(int(180 + 40 * math.sin(t + 1.0)), 0, 255),
+             clamp(int(60 + 40 * math.sin(t + 3.1)), 0, 255),
+             clamp(int(200 + 40 * math.sin(t + 5.2)), 0, 255), 160),
+        ]
+        for i, col in enumerate(colors):
+            s = pg.Surface((self.WIDTH - i * 10, self.HEIGHT - i * 6), pg.SRCALPHA)
+            pg.draw.ellipse(s, col, s.get_rect())
+            surface.blit(s, (self.x + i * 5, self.y + i * 3))
+
+    def get_rect(self):
+        return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
+
+
+class SpeedBump:
+    WIDTH = 70
+    HEIGHT = 12
+
+    def __init__(self, x, speed):
+        self.x = x
+        self.y = -self.HEIGHT
+        self.speed = speed
+
+    def update(self, dt):
+        self.y += self.speed * dt
+        return self.y > HEIGHT
+
+    def draw(self, surface):
+        pg.draw.rect(surface, (140, 120, 80), (self.x, self.y, self.WIDTH, self.HEIGHT), border_radius=5)
+        stripe_w = 10
+        for i in range(self.WIDTH // (stripe_w * 2) + 1):
+            sx = self.x + i * stripe_w * 2
+            clip_w = min(stripe_w, self.x + self.WIDTH - sx)
+            if clip_w > 0:
+                pg.draw.rect(surface, (220, 200, 60),
+                             (sx, self.y, clip_w, self.HEIGHT), border_radius=3)
+        pg.draw.rect(surface, (180, 160, 100), (self.x, self.y, self.WIDTH, 3), border_radius=5)
+
+    def get_rect(self):
+        return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
+
+
 class Coin:
     RADIUS = 11
 
@@ -229,10 +294,27 @@ class Road:
     STRIPE_H = 50
     STRIPE_GAP = 80
     LANE_DIVIDERS = [LANE_CENTERS[1] - 6, LANE_CENTERS[2] - 6, LANE_CENTERS[3] - 6]
+    RUMBLE_W = 14
+    RUMBLE_PERIOD = 60
 
     def __init__(self, scroll_speed):
         self.scroll = 0.0
         self.scroll_speed = scroll_speed
+        self._grass_surf = self._build_grass()
+
+    def _build_grass(self):
+        s = pg.Surface((ROAD_LEFT, HEIGHT))
+        s.fill(GRASS_COLOR)
+        rng = random.Random(42)
+        for _ in range(180):
+            gx = rng.randint(0, ROAD_LEFT - 4)
+            gy = rng.randint(0, HEIGHT - 6)
+            shade = rng.randint(-12, 12)
+            col = (clamp(GRASS_COLOR[0] + shade, 0, 255),
+                   clamp(GRASS_COLOR[1] + shade, 0, 255),
+                   clamp(GRASS_COLOR[2] + shade, 0, 255))
+            pg.draw.rect(s, col, (gx, gy, rng.randint(2, 5), rng.randint(3, 7)))
+        return s
 
     def update(self, dt):
         self.scroll += self.scroll_speed * dt
@@ -241,16 +323,25 @@ class Road:
             self.scroll -= period
 
     def draw(self, surface):
-        pg.draw.rect(surface, GRASS_COLOR, (0, 0, ROAD_LEFT, HEIGHT))
-        pg.draw.rect(surface, GRASS_COLOR, (ROAD_RIGHT, 0, WIDTH - ROAD_RIGHT, HEIGHT))
+        surface.blit(self._grass_surf, (0, 0))
+        surface.blit(pg.transform.flip(self._grass_surf, True, False), (ROAD_RIGHT, 0))
+
+        period = self.RUMBLE_PERIOD
+        num = (HEIGHT // period) + 2
+        for i in range(num):
+            ry = int(i * period - self.scroll % period)
+            col = RED if (i % 2 == 0) else WHITE
+            pg.draw.rect(surface, col, (ROAD_LEFT - self.RUMBLE_W - 18, ry, self.RUMBLE_W, period // 2))
+            pg.draw.rect(surface, col, (ROAD_RIGHT + 18, ry, self.RUMBLE_W, period // 2))
+
         pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_LEFT - 18, 0, 18, HEIGHT))
         pg.draw.rect(surface, SHOULDER_COLOR, (ROAD_RIGHT, 0, 18, HEIGHT))
         pg.draw.rect(surface, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_RIGHT - ROAD_LEFT, HEIGHT))
 
-        period = self.STRIPE_H + self.STRIPE_GAP
-        num = (HEIGHT // period) + 2
-        for i in range(num):
-            y = int(i * period - self.scroll % period)
+        stripe_period = self.STRIPE_H + self.STRIPE_GAP
+        num_stripes = (HEIGHT // stripe_period) + 2
+        for i in range(num_stripes):
+            y = int(i * stripe_period - self.scroll % stripe_period)
             for lx in self.LANE_DIVIDERS:
                 pg.draw.rect(surface, (90, 90, 95), (lx, y, self.STRIPE_W, self.STRIPE_H))
 
@@ -270,27 +361,50 @@ class Player:
         self.car_type = car_type
         self.vel_x = 0.0
         self.tilt = 0.0
+        self.slide_vel = 0.0
+        self.slide_timer = 0.0
+        self.slowdown_timer = 0.0
+
+    def apply_oil(self):
+        self.slide_vel = random.choice([-1, 1]) * self.SPEED * 0.9
+        self.slide_timer = 1.4
+
+    def apply_speedbump(self):
+        self.slowdown_timer = 1.8
 
     def update(self, dt, keys):
         accel = 900
         friction = 600
-        if keys[pg.K_LEFT]:
-            self.vel_x = max(self.vel_x - accel * dt, -self.SPEED)
-        elif keys[pg.K_RIGHT]:
-            self.vel_x = min(self.vel_x + accel * dt, self.SPEED)
+
+        if self.slide_timer > 0:
+            self.slide_timer -= dt
+            self.x += self.slide_vel * dt
+            self.slide_vel *= (1 - dt * 2.5)
         else:
-            if self.vel_x > 0:
-                self.vel_x = max(0.0, self.vel_x - friction * dt)
+            if keys[pg.K_LEFT]:
+                self.vel_x = max(self.vel_x - accel * dt, -self.SPEED)
+            elif keys[pg.K_RIGHT]:
+                self.vel_x = min(self.vel_x + accel * dt, self.SPEED)
             else:
-                self.vel_x = min(0.0, self.vel_x + friction * dt)
+                if self.vel_x > 0:
+                    self.vel_x = max(0.0, self.vel_x - friction * dt)
+                else:
+                    self.vel_x = min(0.0, self.vel_x + friction * dt)
+            self.x += self.vel_x * dt
 
-        self.x += self.vel_x * dt
+        if self.slowdown_timer > 0:
+            self.slowdown_timer -= dt
+
         self.x = clamp(self.x, ROAD_LEFT + 2, ROAD_RIGHT - self.WIDTH - 2)
-
-        target_tilt = self.vel_x / self.SPEED * 6
+        target_tilt = (self.vel_x + self.slide_vel) / self.SPEED * 6
         self.tilt += (target_tilt - self.tilt) * 8 * dt
 
-    def draw(self, surface):
+    def get_speed_factor(self):
+        return 0.45 if self.slowdown_timer > 0 else 1.0
+
+    def draw(self, surface, invincible, ticks):
+        if invincible and (ticks // 80) % 2 == 0:
+            return
         if abs(self.tilt) > 0.3:
             temp = pg.Surface((self.WIDTH + 12, self.HEIGHT + 12), pg.SRCALPHA)
             draw_car(temp, 6, 6, self.WIDTH, self.HEIGHT, self.color, CYAN, self.car_type, player=True)
@@ -310,20 +424,25 @@ class Player:
 class HUD:
     def __init__(self, fonts):
         self.small, self.tiny = fonts[1], fonts[2]
-        self.surf = pg.Surface((200, 120), pg.SRCALPHA)
+        self.surf = pg.Surface((210, 140), pg.SRCALPHA)
 
-    def draw(self, surface, score, level, speed_pct, difficulty, multiplier):
+    def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives):
         self.surf.fill((10, 10, 18, 170))
-        pg.draw.rect(self.surf, (255, 255, 255, 30), (0, 0, 200, 120), 2, border_radius=8)
+        pg.draw.rect(self.surf, (255, 255, 255, 30), (0, 0, 210, 140), 2, border_radius=8)
 
         pulse = int(4 * abs(math.sin(pg.time.get_ticks() / 400)))
         self._blit(f"Score  {score}", (255, 255, 90 + pulse), 14, 10)
         self._blit(f"Level  {level}", CYAN, 14, 36)
         self._blit(f"Speed  {speed_pct}%", GREEN, 14, 60)
         self._blit(f"Mode: {difficulty}", YELLOW, 14, 86, tiny=True)
+
+        heart = "\u2665"
+        life_str = (heart * lives) + ("\u2661" * (MAX_LIVES - lives))
+        self._blit(life_str, RED, 14, 102, tiny=True)
+
         if multiplier > 1.0:
             mc = YELLOW if multiplier >= 2.0 else (150, 220, 150)
-            self._blit(f"x{multiplier:.1f} combo!", mc, 14, 102, tiny=True)
+            self._blit(f"x{multiplier:.1f} combo!", mc, 14, 118, tiny=True)
 
         surface.blit(self.surf, (10, 10))
 
@@ -396,6 +515,10 @@ class Game:
         self.fb_text = ""
         self.fb_pos = (WIDTH // 2, HEIGHT // 2)
         self.fb_timer = 0.0
+        self.lives = MAX_LIVES
+        self.invincibility_timer = 0.0
+        self.level_flash_timer = 0.0
+        self.speed_blur_alpha = 0
 
     def _get_high_score(self):
         try:
@@ -484,10 +607,21 @@ class Game:
         if self.state != "playing":
             return
 
+        if self.invincibility_timer > 0:
+            self.invincibility_timer -= dt
+        if self.level_flash_timer > 0:
+            self.level_flash_timer -= dt
+
         keys = pg.key.get_pressed()
         self.player.update(dt, keys)
-        self.road.scroll_speed = self.scroll_speed
+
+        speed_factor = self.player.get_speed_factor()
+        effective_scroll = self.scroll_speed * speed_factor
+        self.road.scroll_speed = effective_scroll
         self.road.update(dt)
+
+        target_blur = int(clamp((self.scroll_speed - 300) / 400 * 120, 0, 110))
+        self.speed_blur_alpha += (target_blur - self.speed_blur_alpha) * dt * 4
 
         diff = DIFFICULTY[self.selected_diff]
 
@@ -501,25 +635,39 @@ class Game:
             self.coin_timer = 0.0
             self.coins.append(Coin(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.9))
 
+        invincible = self.invincibility_timer > 0
         player_rect = self.player.get_rect()
 
         for car in self.obs_cars[:]:
             if car.update(dt):
                 self.obs_cars.remove(car)
-                self._on_passed()
+                self._on_car_passed()
                 continue
-            if car.get_rect().colliderect(player_rect):
-                self._trigger_gameover()
+            if not invincible and car.get_rect().colliderect(player_rect):
+                self._on_hit()
                 return
 
         for obj in self.obs_misc[:]:
             if obj.update(dt):
                 self.obs_misc.remove(obj)
-                self._on_passed()
+                self._on_misc_passed()
                 continue
             if obj.get_rect().colliderect(player_rect):
-                self._trigger_gameover()
-                return
+                if isinstance(obj, OilSlick):
+                    self.obs_misc.remove(obj)
+                    self.player.apply_oil()
+                    self.fb_text = "SLIPPING!"
+                    self.fb_pos = (int(self.player.x + Player.WIDTH // 2), int(self.player.y))
+                    self.fb_timer = 1.0
+                elif isinstance(obj, SpeedBump):
+                    self.obs_misc.remove(obj)
+                    self.player.apply_speedbump()
+                    self.fb_text = "SLOW!"
+                    self.fb_pos = (int(self.player.x + Player.WIDTH // 2), int(self.player.y))
+                    self.fb_timer = 1.0
+                elif not invincible:
+                    self._on_hit()
+                    return
 
         for coin in self.coins[:]:
             if coin.update(dt):
@@ -545,6 +693,7 @@ class Game:
             self.scroll_speed = min(self.scroll_speed + diff["speed_inc"], diff["base_speed"] * 2.5)
             self.obs_interval = max(0.55, self.obs_interval - 0.05)
             self.speed_pct = int(self.scroll_speed / diff["base_speed"] * 100)
+            self.level_flash_timer = 1.2
 
     def _spawn_obstacle(self, diff):
         min_spd, max_spd = diff["obs_speed"]
@@ -553,16 +702,35 @@ class Game:
         lanes = [i for i in range(4) if i not in occupied] or list(range(4))
         lane = random.choice(lanes)
         roll = random.random()
-        if roll < 0.55:
+        if roll < 0.45:
             self.obs_cars.append(ObstacleCar(lane, spd))
-        elif roll < 0.75:
+        elif roll < 0.60:
             self.obs_misc.append(Cone(LANE_CENTERS[lane] - Cone.WIDTH // 2, spd))
-        elif roll < 0.88:
+        elif roll < 0.72:
             self.obs_misc.append(Barrier(LANE_CENTERS[lane] - Barrier.WIDTH // 2, spd))
-        else:
+        elif roll < 0.82:
             self.obs_misc.append(Pothole(LANE_CENTERS[lane], spd))
+        elif roll < 0.91:
+            self.obs_misc.append(OilSlick(LANE_CENTERS[lane] - OilSlick.WIDTH // 2, spd * 0.7))
+        else:
+            self.obs_misc.append(SpeedBump(LANE_CENTERS[lane] - SpeedBump.WIDTH // 2, spd * 0.8))
 
-    def _on_passed(self):
+    def _on_hit(self):
+        self.lives -= 1
+        self.combo = 0
+        self._recalc_multiplier()
+        self.fb_text = "-1 LIFE!"
+        self.fb_pos = (int(self.player.x + Player.WIDTH // 2), int(self.player.y))
+        self.fb_timer = 1.1
+        if self.lives <= 0:
+            self._trigger_gameover()
+        else:
+            self.invincibility_timer = INVINCIBILITY_DURATION
+
+    def _on_car_passed(self):
+        self.score += 1
+
+    def _on_misc_passed(self):
         self.combo += 1
         self._recalc_multiplier()
         self.score += int(1 * self.multiplier)
@@ -604,16 +772,39 @@ class Game:
                 obj.draw(self.screen)
             for coin in self.coins:
                 coin.draw(self.screen)
-            self.player.draw(self.screen)
+            ticks = pg.time.get_ticks()
+            self.player.draw(self.screen, self.invincibility_timer > 0, ticks)
+
+            if self.speed_blur_alpha > 4:
+                alpha = int(self.speed_blur_alpha)
+                blur_surf = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+                line_count = 18
+                for i in range(line_count):
+                    lx = ROAD_LEFT + (ROAD_RIGHT - ROAD_LEFT) * i // line_count
+                    line_alpha = alpha // 2
+                    pg.draw.line(blur_surf, (255, 255, 255, line_alpha), (lx, 0), (lx, HEIGHT), 1)
+                self.screen.blit(blur_surf, (0, 0))
+
             self.hud.draw(self.screen, self.score, self.level,
-                          self.speed_pct, self.selected_diff, self.multiplier)
+                          self.speed_pct, self.selected_diff, self.multiplier, self.lives)
             self.btn_pause.draw(self.screen, self.fonts[2])
             self._draw_feedback()
+            if self.level_flash_timer > 0:
+                self._draw_level_flash()
             if self.state == "paused":
                 self._draw_pause()
             elif self.state == "gameover":
                 self._draw_gameover()
         pg.display.flip()
+
+    def _draw_level_flash(self):
+        alpha = int(clamp(self.level_flash_timer / 1.2 * 220, 0, 220))
+        s = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        s.fill((255, 255, 255, min(alpha // 6, 30)))
+        self.screen.blit(s, (0, 0))
+        t = self.fonts[0].render(f"LEVEL {self.level}!", True, YELLOW)
+        t.set_alpha(alpha)
+        self.screen.blit(t, t.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 40)))
 
     def _draw_feedback(self):
         if self.fb_timer <= 0 or not self.fb_text:
@@ -621,7 +812,7 @@ class Game:
         alpha = int(255 * (self.fb_timer / 0.9))
         y = self.fb_pos[1] - int((0.9 - self.fb_timer) * 60)
         surf = self.fonts[1].render(self.fb_text, True, YELLOW)
-        surf.set_alpha(alpha)
+        surf.set_alpha(clamp(alpha, 0, 255))
         self.screen.blit(surf, surf.get_rect(center=(self.fb_pos[0], y)))
 
     def _draw_menu(self):
@@ -735,6 +926,7 @@ class Game:
         self.btn_quit.draw(self.screen, f_small)
         hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 308))
+
 
 if __name__ == "__main__":
     game = Game()
