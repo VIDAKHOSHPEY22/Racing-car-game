@@ -1,8 +1,9 @@
 # `atari.py` — Bugs & Enhancements
 
 ## Open Issues
-- [ ] Fix HUD hearts
-- [ ] Performance Improvements
+- [ ] Fix HUD hearts should look like ♥
+- [ ] Performance Improvements to make gameplay smoother
+- [ ] for HUD Menu on bootup it should have ← and →
 
 ## Completed
 
