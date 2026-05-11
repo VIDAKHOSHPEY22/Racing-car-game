@@ -20,6 +20,8 @@
 
 Great for Python beginners or anyone who loves tinkering with games!
 
+♥ Fun Fact: if you press Num Lock (on Windows), hold alt and input 3 (example) it will appear with a heart :D ♥
+
 **You're welcome to:**
 
 - Fix open bugs and submit improvements
