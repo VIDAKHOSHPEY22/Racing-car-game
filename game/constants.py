@@ -40,7 +40,20 @@ CAR_SKINS = [
 ]
 
 DIFFICULTY_SETTINGS = {
-    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9)},
-    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12)},
-    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15)},
+    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9), "max_speed": 80},
+    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12), "max_speed": 120},
+    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15), "max_speed": 160},
 }
+
+# Player speed / physics tuning (units: speed units per second)
+# Default player forward speed while driving
+PLAYER_SPEED_DEFAULT = 50.0
+# ACCELERATION: how many speed units are added per second while accelerating
+ACCELERATION = 10.0
+# FRICTION: how many speed units are removed per second when not accelerating
+FRICTION = 5.0
+# Speed bounds (visual/player velocity)
+MIN_SPEED = 30.0       # minimum allowed player speed (brake limit)
+MAX_SPEED = 120.0     # max allowed player speed
+# deceleration per second when braking (S / Down)
+BRAKE_DECEL = 40.0

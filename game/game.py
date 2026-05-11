@@ -8,6 +8,9 @@ from .button import Button
 from .car import Car
 from .coin import Coin
 from .constants import (
+    ACCELERATION,
+    FRICTION,
+    BRAKE_DECEL,
     BASE_SPEED,
     CAR_SKINS,
     CYAN,
@@ -36,6 +39,7 @@ from .game_state import GameState
 from .music_utils import load_music
 from .road import Road
 from .storage import read_high_score, write_high_score
+from . import constants as const
 
 
 class Game:
@@ -61,6 +65,8 @@ class Game:
         self.lives = PLAYER_START_LIVES
         self.base_speed = DIFFICULTY_SETTINGS[self.selected_difficulty]["base_speed"]
         self.current_speed = self.base_speed
+        # displayed speed (reflects player velocity) kept separate from current_speed game logic
+        self.display_speed = float(self.current_speed)
         self.score_animation = 0
         self.score_multiplier = 1.0
         self.multiplier_timer = 0
@@ -114,7 +120,21 @@ class Game:
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         self.base_speed = diff_settings["base_speed"]
+        # apply difficulty-specific max speed at runtime so `Car.accelerate` clamps correctly
+        try:
+            import game.constants as const
+
+            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED))
+        except Exception:
+            pass
         self.current_speed = self.base_speed
+        # ensure player's internal velocity starts at the PLAYER_SPEED_DEFAULT
+        from .constants import PLAYER_SPEED_DEFAULT
+        if self.player and hasattr(self.player, "velocity"):
+            try:
+                self.player.velocity = float(PLAYER_SPEED_DEFAULT)
+            except Exception:
+                pass
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
         self.paused = False
@@ -281,6 +301,25 @@ class Game:
             self.player.move("left")
         if keys[pg.K_RIGHT]:
             self.player.move("right")
+        # Frame-time (seconds) for frame-independent accel/decel
+        dt = max(1 / FPS, self.clock.get_time() / 1000.0)
+        # Brake input (S or Down) takes priority, then accelerate, otherwise friction
+        if (keys[pg.K_s] or keys[pg.K_DOWN]) and hasattr(self.player, "accelerate"):
+            # strong deceleration while braking
+            self.player.accelerate(-BRAKE_DECEL * dt)
+        elif (keys[pg.K_w] or keys[pg.K_UP]) and hasattr(self.player, "accelerate"):
+            # regular acceleration
+            self.player.accelerate(ACCELERATION * dt)
+        else:
+            # apply friction (deceleration) when not accelerating nor braking
+            if hasattr(self.player, "accelerate"):
+                self.player.accelerate(-FRICTION * dt)
+
+        # update display-only speed from player's internal velocity (do not change game logic current_speed)
+        try:
+            self.display_speed = float(self.player.get_velocity())
+        except Exception:
+            self.display_speed = float(self.current_speed)
         self.update_player_bounds()
 
         current_time = pg.time.get_ticks()
@@ -386,7 +425,26 @@ class Game:
             self.draw_high_score_screen()
         else:
             self.road.draw(self.screen)
-            for car in [self.player] + self.obstacles:
+            # draw player with a visual vertical offset based on forward velocity
+            baseline_y = self.player.y
+            mid_y = HEIGHT // 2
+            # fraction of speed between MIN_SPEED and current runtime MAX_SPEED
+            try:
+                vel = float(self.player.get_velocity())
+                frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
+                frac = max(0.0, min(1.0, frac))
+            except Exception:
+                frac = 0.0
+            target_visual_y = int(baseline_y - frac * max(0, (baseline_y - mid_y)))
+
+            # draw player shadow and player at visual y
+            shadow = pg.Surface((self.player.width, self.player.height // 3), pg.SRCALPHA)
+            shadow.fill((0, 0, 0, 80))
+            self.screen.blit(shadow, (self.player.x, target_visual_y + self.player.height - 10))
+            self.player.draw(self.screen, y_override=target_visual_y)
+
+            # draw obstacles normally
+            for car in self.obstacles:
                 shadow = pg.Surface((car.width, car.height // 3), pg.SRCALPHA)
                 shadow.fill((0, 0, 0, 80))
                 self.screen.blit(shadow, (car.x, car.y + car.height - 10))
@@ -398,6 +456,19 @@ class Game:
             self.draw_scoreboard()
             self.pause_button.draw(self.screen, self.tiny_font)
             self.sound_button.draw(self.screen, self.tiny_font)
+            # Speed HUD: show player's forward velocity in top-right
+            try:
+                vel = self.player.get_velocity()
+            except Exception:
+                vel = None
+            if vel is not None:
+                speed_text = self.small_font.render(f"Speed: {vel:.1f} km/h", True, WHITE)
+                speed_rect = speed_text.get_rect(topright=(WIDTH - 10, 10))
+                # Draw background box for readability
+                bg = pg.Surface((speed_rect.width + 8, speed_rect.height + 6), pg.SRCALPHA)
+                bg.fill((0, 0, 0, 140))
+                self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
+                self.screen.blit(speed_text, speed_rect)
             self.draw_multiplier_feedback()
             if self.paused:
                 self.draw_pause_screen()
@@ -597,7 +668,9 @@ class Game:
         stage_text = self.small_font.render(f"Stage: {self.stage}", True, CYAN)
         self.screen.blit(stage_text, (25, 55))
 
-        speed_text = self.small_font.render(f"Speed: {self.current_speed:.1f}", True, GREEN)
+        # show real player speed in km/h
+        speed_val = getattr(self, "display_speed", self.current_speed)
+        speed_text = self.small_font.render(f"Speed: {speed_val:.1f} km/h", True, GREEN)
         self.screen.blit(speed_text, (25, 85))
 
         lives_text = self.small_font.render(f"Lives: {self.lives}", True, WHITE)
