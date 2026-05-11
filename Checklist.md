@@ -1,16 +1,17 @@
 # `atari.py` — Bugs & Enhancements
 
 ## Open Issues
-
-- [ ] Bug: passing cars behave incorrectly
-- [ ] Improve overall appearance and visuals
-- [ ] Bring gameplay up to Atari standard
-- [ ] Add obstacles to increase difficulty
+- [ ] Fix HUD hearts
+- [ ] Performance Improvements
 
 ## Completed
 
 - [x] Speed system implemented
 - [x] Basic appearance added
+- [x] Bug: passing cars behave incorrectly
+- [x] Improve overall appearance and visuals
+- [x] Bring gameplay up to Atari standard
+- [x] Add obstacles to increase difficulty
 
 ---
 
