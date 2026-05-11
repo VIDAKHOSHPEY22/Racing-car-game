@@ -4,7 +4,6 @@ import random
 import math
 
 pg.init()
-
 WIDTH, HEIGHT = 800, 600
 FPS = 60
 
@@ -24,7 +23,6 @@ SHOULDER_COLOR = (60, 62, 58)
 GRASS_COLOR = (45, 75, 40)
 ROAD_LEFT = 150
 ROAD_RIGHT = 650
-
 COIN_INTERVAL = 1.8
 MULTIPLIER_DECAY = 3.5
 
@@ -59,10 +57,8 @@ OBSTACLE_COLORS = [
     (180, 170, 50),
 ]
 
-
 def clamp(val, lo, hi):
     return max(lo, min(hi, val))
-
 
 def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=False):
     shadow = pg.Surface((w + 6, h // 3), pg.SRCALPHA)
@@ -100,7 +96,6 @@ def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=Fal
             pg.draw.ellipse(surface, (255, 255, 180), (lx, y - 5, 8, 6))
         pg.draw.rect(surface, RED, (x + 4, y + h - 4, w - 8, 4), border_radius=2)
 
-
 class Cone:
     WIDTH = 18
     HEIGHT = 26
@@ -126,7 +121,6 @@ class Cone:
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
 
-
 class Barrier:
     WIDTH = 60
     HEIGHT = 20
@@ -147,7 +141,6 @@ class Barrier:
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
-
 
 class Pothole:
     RADIUS = 14
@@ -174,7 +167,6 @@ class Pothole:
             self.x - self.RADIUS, self.y - self.RADIUS // 2,
             self.RADIUS * 2, self.RADIUS
         )
-
 
 class OilSlick:
     WIDTH = 54
@@ -209,7 +201,6 @@ class OilSlick:
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
 
-
 class SpeedBump:
     WIDTH = 70
     HEIGHT = 12
@@ -236,7 +227,6 @@ class SpeedBump:
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
-
 
 class Coin:
     RADIUS = 11
@@ -265,7 +255,6 @@ class Coin:
     def get_rect(self):
         return pg.Rect(self.x - self.RADIUS, self.y - self.RADIUS, self.RADIUS * 2, self.RADIUS * 2)
 
-
 class ObstacleCar:
     def __init__(self, lane, speed):
         self.width = 48
@@ -287,7 +276,6 @@ class ObstacleCar:
 
     def get_rect(self):
         return pg.Rect(int(self.x) + 4, int(self.y) + 4, self.width - 8, self.height - 8)
-
 
 class Road:
     STRIPE_W = 8
@@ -347,7 +335,6 @@ class Road:
 
         pg.draw.line(surface, WHITE, (ROAD_LEFT, 0), (ROAD_LEFT, HEIGHT), 3)
         pg.draw.line(surface, WHITE, (ROAD_RIGHT, 0), (ROAD_RIGHT, HEIGHT), 3)
-
 
 class Player:
     WIDTH = 48
@@ -420,7 +407,6 @@ class Player:
         return pg.Rect(int(self.x) + margin, int(self.y) + margin,
                        self.WIDTH - margin * 2, self.HEIGHT - margin * 2)
 
-
 class HUD:
     def __init__(self, fonts):
         self.small, self.tiny = fonts[1], fonts[2]
@@ -450,7 +436,6 @@ class HUD:
         font = self.tiny if tiny else self.small
         self.surf.blit(font.render(text, True, color), (x, y))
 
-
 class Button:
     def __init__(self, x, y, w, h, text, color=None):
         self.rect = pg.Rect(x, y, w, h)
@@ -469,13 +454,11 @@ class Button:
     def clicked(self, pos):
         return self.rect.collidepoint(pos)
 
-
 class Game:
     def __init__(self):
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption("Sleek Street Racer")
         self.clock = pg.time.Clock()
-
         f_main = pg.font.Font(None, 44)
         f_small = pg.font.Font(None, 30)
         f_tiny = pg.font.Font(None, 22)
@@ -484,7 +467,6 @@ class Game:
         self.selected_skin = 0
         self.selected_diff = "Medium"
         self.state = "menu"
-
         self.hud = HUD(self.fonts)
         self.btn_play = Button(WIDTH // 2 - 100, 0, 200, 52, "START RACE")
         self.btn_pause = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
@@ -926,7 +908,6 @@ class Game:
         self.btn_quit.draw(self.screen, f_small)
         hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 308))
-
 
 if __name__ == "__main__":
     game = Game()
