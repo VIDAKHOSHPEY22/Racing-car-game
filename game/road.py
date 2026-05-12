@@ -1,4 +1,3 @@
-import math
 import random
 
 import pygame as pg
@@ -10,22 +9,12 @@ class Road:
     def __init__(self, base_speed=10):
         self.road_width = 500
         self.base_road_x = (WIDTH - self.road_width) // 2
-        self.curve_phase = 0.0
-        self.curve_speed = 0.02 * max(0.8, base_speed / BASE_SPEED)
-        self.curve_amplitude = 90
-        self.curve_frequency = 0.012
         self.stripes = []
         for i in range(10):
             self.stripes.append({"y": i * 120 - 100, "width": 60, "height": 20, "speed": base_speed + 2})
 
     def get_bounds(self, y):
-        sample_y = max(0, min(HEIGHT - 1, int(y)))
-        primary_curve = math.sin(self.curve_phase + sample_y * self.curve_frequency)
-        secondary_curve = math.sin((self.curve_phase * 0.55) + sample_y * self.curve_frequency * 0.45)
-        curve_offset = int((primary_curve * 0.75 + secondary_curve * 0.25) * self.curve_amplitude)
-        left = self.base_road_x + curve_offset
-        left = max(40, min(WIDTH - self.road_width - 40, left))
-        return left, left + self.road_width
+        return self.base_road_x, self.base_road_x + self.road_width
 
     def get_drive_bounds(self, y, object_width=0):
         left, right = self.get_bounds(y)
@@ -69,7 +58,6 @@ class Road:
             pg.draw.line(screen, WHITE, (current_right, i), (next_right, i + 1), 2)
 
     def update(self):
-        self.curve_phase += self.curve_speed
         for stripe in self.stripes:
             stripe["y"] += stripe["speed"]
             if stripe["y"] > HEIGHT:
