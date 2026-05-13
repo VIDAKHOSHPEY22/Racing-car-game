@@ -57,3 +57,5 @@ MIN_SPEED = 30.0       # minimum allowed player speed (brake limit)
 MAX_SPEED = 120.0     # max allowed player speed
 # deceleration per second when braking (S / Down)
 BRAKE_DECEL = 40.0
+# Health system
+DAMAGE_COOLDOWN = 1500  # milliseconds

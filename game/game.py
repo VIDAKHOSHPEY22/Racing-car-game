@@ -12,6 +12,7 @@ from .constants import (
     FRICTION,
     BRAKE_DECEL,
     BASE_SPEED,
+    DAMAGE_COOLDOWN,
     CAR_SKINS,
     CYAN,
     DEFAULT_DIFFICULTY,
@@ -63,6 +64,8 @@ class Game:
         self.level = DEFAULT_STAGE
         self.score = 0
         self.lives = PLAYER_START_LIVES
+        self.last_damage_time = 0
+        self.damage_flash_time = 0
         self.base_speed = DIFFICULTY_SETTINGS[self.selected_difficulty]["base_speed"]
         self.current_speed = self.base_speed
         # displayed speed (reflects player velocity) kept separate from current_speed game logic
@@ -115,6 +118,8 @@ class Game:
         self.level = DEFAULT_STAGE
         self.score = 0
         self.lives = PLAYER_START_LIVES
+        self.last_damage_time = 0
+        self.damage_flash_time = 0
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
 
@@ -374,15 +379,35 @@ class Game:
                 self.score += int(1 * self.score_multiplier)
                 continue
             self.align_obstacle_to_road(obstacle)
+
+            try:
+                vel = float(self.player.get_velocity())
+                frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
+                frac = max(0.0, min(1.0, frac))
+            except Exception:
+                frac = 0.0
+
+            player_collision_y = int(
+                self.player.y - frac * max(0, (self.player.y - HEIGHT // 2))
+            )
+
             if (
                 self.player.x < obstacle.x + obstacle.width
                 and self.player.x + self.player.width > obstacle.x
-                and self.player.y < obstacle.y + obstacle.height
-                and self.player.y + self.player.height > obstacle.y
+                and player_collision_y < obstacle.y + obstacle.height
+                and player_collision_y + self.player.height > obstacle.y
             ):
-                self.enter_game_over()
-                if self.current_music:
-                    pg.mixer.music.fadeout(2000)
+                current_time = pg.time.get_ticks()
+                if current_time - self.last_damage_time > DAMAGE_COOLDOWN:
+                    self.lives -= 1
+                    self.last_damage_time = current_time
+                    self.damage_flash_time = current_time
+                    if obstacle in self.obstacles:
+                        self.obstacles.remove(obstacle)
+                    if self.lives <= 0:
+                        self.enter_game_over()
+                        if self.current_music:
+                            pg.mixer.music.fadeout(2000)
 
         if current_time - self.last_coin_time > self.coin_frequency:
             coin_ratio = random.uniform(0.08, 0.92)
@@ -470,6 +495,7 @@ class Game:
                 self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
                 self.screen.blit(speed_text, speed_rect)
             self.draw_multiplier_feedback()
+            self.draw_damage_feedback()
             if self.paused:
                 self.draw_pause_screen()
             if self.state == GameState.GAME_OVER:
@@ -651,6 +677,7 @@ class Game:
     def draw_scoreboard(self):
         self.score_animation += 0.1
         pulse = int(5 * abs(math.sin(self.score_animation)))
+
         hud_bg = pg.Surface((280, 190), pg.SRCALPHA)
         hud_bg.fill((0, 0, 0, 180))
         pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, 280, 190), 3, border_radius=10)
@@ -668,13 +695,28 @@ class Game:
         stage_text = self.small_font.render(f"Stage: {self.stage}", True, CYAN)
         self.screen.blit(stage_text, (25, 55))
 
-        # show real player speed in km/h
         speed_val = getattr(self, "display_speed", self.current_speed)
         speed_text = self.small_font.render(f"Speed: {speed_val:.1f} km/h", True, GREEN)
         self.screen.blit(speed_text, (25, 85))
 
-        lives_text = self.small_font.render(f"Lives: {self.lives}", True, WHITE)
-        self.screen.blit(lives_text, (25, 115))
+        lives_label = self.small_font.render("Lives:", True, WHITE)
+        self.screen.blit(lives_label, (25, 115))
+
+        for i in range(self.lives):
+            heart_x = 112 + i * 34
+            heart_y = 126
+            heart_points = []
+
+            for angle in range(0, 360, 10):
+                t = math.radians(angle)
+                x = 16 * math.sin(t) ** 3
+                y = -(13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t))
+
+                scale = 0.7
+                heart_points.append((heart_x + int(x * scale), heart_y + int(y * scale)))
+
+            pg.draw.polygon(self.screen, RED, heart_points)
+            pg.draw.polygon(self.screen, WHITE, heart_points, 1)
 
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (25, 145))
@@ -722,6 +764,23 @@ class Game:
                     self.screen.blit(main_text, (x - main_text.get_width() // 2, y))
             else:
                 self.multiplier_display_time = 0
+
+    def draw_damage_feedback(self):
+        if self.damage_flash_time > 0:
+            current_time = pg.time.get_ticks()
+            elapsed = current_time - self.damage_flash_time
+
+            if elapsed < 600:
+                alpha = int(120 * (1 - elapsed / 600))
+                flash = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+                flash.fill((255, 0, 0, alpha))
+                self.screen.blit(flash, (0, 0))
+
+                damage_text = self.font.render("DAMAGE!", True, RED)
+                text_rect = damage_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 120))
+                self.screen.blit(damage_text, text_rect)
+            else:
+                self.damage_flash_time = 0
 
     def draw_pause_screen(self):
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
