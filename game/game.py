@@ -35,11 +35,17 @@ from .constants import (
     WHITE,
     WIDTH,
     YELLOW,
+    OBSTACLE_PASS_SCORE,
 )
 from .game_state import GameState
 from .music_utils import load_music
 from .road import Road
-from .storage import read_high_score, write_high_score
+from .storage import (
+    load_save_data,
+    read_high_score,
+    update_progress,
+    save_player_preferences,
+)
 from . import constants as const
 
 
@@ -54,9 +60,20 @@ class Game:
 
         self.state = GameState.MENU
         self.paused = False
+        
         self.music_muted = False
-        self.selected_skin = 0
+        self.save_data = load_save_data()
+        self.selected_skin = self.save_data.get("selected_skin", 0)
+        self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
         self.selected_difficulty = DEFAULT_DIFFICULTY
+
+        if self.selected_difficulty not in DIFFICULTY_SETTINGS:
+            self.selected_difficulty = DEFAULT_DIFFICULTY
+
+        self.total_money = self.save_data.get("total_money", 0)
+        self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
+        self.games_played = self.save_data.get("games_played", 0)
+        self.total_score = self.save_data.get("total_score", 0)
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
 
@@ -85,7 +102,13 @@ class Game:
         self.last_coin_time = 0
         self.coin_frequency = 2000
         self.obstacle_frequency = DIFFICULTY_SETTINGS[self.selected_difficulty]["obstacle_freq"]
-        self.best_score = read_high_score()
+        
+        self.best_score = self.save_data.get("high_score", read_high_score())
+        self.session_money = 0
+        self.is_new_high_score = False
+
+        self.money_popup_amount = 0
+        self.money_popup_start_time = 0
 
         self.play_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 120, 200, 60, "START RACE")
         self.high_score_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "HIGH SCORES")
@@ -117,6 +140,13 @@ class Game:
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
         self.score = 0
+        self.session_money = 0
+        self.is_new_high_score = False
+
+        self.money_popup_amount = 0
+        self.money_popup_start_time = 0
+
+
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
         self.damage_flash_time = 0
@@ -163,17 +193,44 @@ class Game:
         self.set_state(GameState.HIGH_SCORE)
 
     def enter_game_over(self):
-        self.best_score = write_high_score(self.score)
+        previous_best_score = read_high_score()
+        self.is_new_high_score = self.score > previous_best_score
+
+        self.save_data = update_progress(
+            score=self.score,
+            stage=self.stage,
+            money_earned=self.session_money,
+        )
+
+        self.best_score = self.save_data["high_score"]
+        self.total_money = self.save_data["total_money"]
+        self.best_stage = self.save_data["best_stage"]
+        self.games_played = self.save_data["games_played"]
+        self.total_score = self.save_data["total_score"]
+
         self.set_state(GameState.GAME_OVER)
 
+    def save_preferences(self):
+        self.save_data = save_player_preferences(
+            self.selected_skin,
+            self.selected_difficulty,
+    )    
+
     def return_to_menu(self):
-        self.best_score = read_high_score()
+        self.save_preferences()
+        self.save_data = load_save_data()
+        self.best_score = self.save_data["high_score"]
+        self.total_money = self.save_data["total_money"]
+        self.best_stage = self.save_data["best_stage"]
+        self.games_played = self.save_data["games_played"]
+        self.total_score = self.save_data["total_score"]
         self.reset_game(change_state=False)
         self.set_state(GameState.MENU)
 
     def handle_events(self):
         for event in pg.event.get():
             if event.type == pg.QUIT:
+                self.save_preferences()
                 if self.current_music:
                     pg.mixer.music.stop()
                 pg.quit()
@@ -209,6 +266,7 @@ class Game:
             button_rect = layout["difficulty_buttons"][index]
             if button_rect.collidepoint(mouse_pos):
                 self.selected_difficulty = difficulty
+                self.save_preferences()
                 self.reset_game(change_state=False)
                 break
 
@@ -217,10 +275,12 @@ class Game:
         if left_arrow.collidepoint(mouse_pos):
             self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
             self._sync_player_skin()
+            self.save_preferences()
             self.reset_game(change_state=False)
         if right_arrow.collidepoint(mouse_pos):
             self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
             self._sync_player_skin()
+            self.save_preferences()
             self.reset_game(change_state=False)
 
         if self.play_button.is_clicked(mouse_pos):
@@ -228,6 +288,7 @@ class Game:
         if self.high_score_button.is_clicked(mouse_pos):
             self.open_high_scores()
         if self.exit_button.is_clicked(mouse_pos):
+            self.save_preferences()
             if self.current_music:
                 pg.mixer.music.stop()
             pg.quit()
@@ -376,7 +437,7 @@ class Game:
                 self.obstacles.remove(obstacle)
                 self.consecutive_actions += 1
                 self.update_multiplier()
-                self.score += int(1 * self.score_multiplier)
+                self.score += int(OBSTACLE_PASS_SCORE * self.score_multiplier)
                 continue
             self.align_obstacle_to_road(obstacle)
 
@@ -431,7 +492,13 @@ class Game:
                 self.coins.remove(coin)
                 self.consecutive_actions += 1
                 self.update_multiplier()
-                self.score += int(5 * self.score_multiplier)
+
+                self.score += int(coin.score_value * self.score_multiplier)
+                self.session_money += coin.money_value
+
+                self.money_popup_amount = coin.money_value
+                self.money_popup_start_time = pg.time.get_ticks()
+
                 self.multiplier_display_time = pg.time.get_ticks()
                 self.multiplier_text_pos = (coin.x, coin.y)
 
@@ -657,33 +724,53 @@ class Game:
         self.screen.blit(help_text, (WIDTH // 2 - help_text.get_width() // 2, layout["footer_rect"].y + 42))
 
     def draw_high_score_screen(self):
-        card_x, card_y = self.draw_menu_shell("HIGH SCORES", "Prepared for future leaderboard and garage integration.")
+        self.save_data = load_save_data()
+        self.best_score = self.save_data["high_score"]
+        self.total_money = self.save_data["total_money"]
+        self.best_stage = self.save_data["best_stage"]
+        self.games_played = self.save_data["games_played"]
+        self.total_score = self.save_data["total_score"]
 
-        score_panel = pg.Surface((MENU_CARD_WIDTH - 110, 170), pg.SRCALPHA)
+        card_x, card_y = self.draw_menu_shell("HIGH SCORES", "Saved player progress and race statistics.")
+
+        score_panel = pg.Surface((MENU_CARD_WIDTH - 110, 230), pg.SRCALPHA)
         score_panel.fill((SLATE[0], SLATE[1], SLATE[2], 220))
-        pg.draw.rect(score_panel, (255, 255, 255, 30), (0, 0, MENU_CARD_WIDTH - 110, 170), 2, border_radius=18)
-        self.screen.blit(score_panel, (card_x + 55, card_y + 130))
+        pg.draw.rect(score_panel, (255, 255, 255, 30), (0, 0, MENU_CARD_WIDTH - 110, 230), 2, border_radius=18)
+        self.screen.blit(score_panel, (card_x + 55, card_y + 115))
 
-        best_label = self.small_font.render("Best Score", True, GOLD)
-        best_value = self.font.render(str(self.best_score), True, WHITE)
-        note = self.tiny_font.render("This screen now has its own state and persistence hook.", True, (205, 215, 225))
-        self.screen.blit(best_label, (WIDTH // 2 - best_label.get_width() // 2, card_y + 162))
-        self.screen.blit(best_value, (WIDTH // 2 - best_value.get_width() // 2, card_y + 204))
-        self.screen.blit(note, (WIDTH // 2 - note.get_width() // 2, card_y + 258))
+        progress_items = [
+            ("Best Score", self.best_score),
+            ("Total Money", self.total_money),
+            ("Best Stage", self.best_stage),
+            ("Games Played", self.games_played),
+            ("Total Score", self.total_score),
+        ]
 
-        self.menu_button.rect.y = card_y + 348
+        start_y = card_y + 145
+        for index, (label, value) in enumerate(progress_items):
+            y = start_y + index * 36
+            label_text = self.small_font.render(f"{label}:", True, GOLD)
+            value_text = self.small_font.render(str(value), True, WHITE)
+
+            self.screen.blit(label_text, (card_x + 105, y))
+            self.screen.blit(value_text, (card_x + MENU_CARD_WIDTH - 190, y))
+
+        #note = self.tiny_font.render("Progress is loaded from local save_data.json.", True, (205, 215, 225))
+        #self.screen.blit(note, (WIDTH // 2 - note.get_width() // 2, card_y + 360))
+
+        self.menu_button.rect.y = card_y + 370
         self.menu_button.draw(self.screen, self.small_font)
 
     def draw_scoreboard(self):
         self.score_animation += 0.1
         pulse = int(5 * abs(math.sin(self.score_animation)))
 
-        hud_bg = pg.Surface((280, 190), pg.SRCALPHA)
+        hud_bg = pg.Surface((280, 220), pg.SRCALPHA)
         hud_bg.fill((0, 0, 0, 180))
-        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, 280, 190), 3, border_radius=10)
+        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, 280, 220), 3, border_radius=10)
 
-        for index in range(190):
-            alpha = int(30 * (1 - index / 190))
+        for index in range(220):
+            alpha = int(30 * (1 - index / 220))
             pg.draw.line(hud_bg, (50, 180, 80, alpha), (0, index), (280, index))
 
         self.screen.blit(hud_bg, (10, 10))
@@ -721,10 +808,76 @@ class Game:
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (25, 145))
 
+        display_money = self.total_money
+
+        if self.state != GameState.GAME_OVER:
+            display_money += self.session_money
+
+
+
+        money_text = self.tiny_font.render(
+            f"Money: {display_money}",
+            True,
+            GOLD,
+        )
+        self.screen.blit(money_text, (25, 165))
+
+        popup_age = pg.time.get_ticks() - self.money_popup_start_time
+        popup_duration = 950
+
+        if self.money_popup_amount > 0 and popup_age < popup_duration:
+            progress = popup_age / popup_duration
+            popup_y = 162 - int(progress * 22)
+            popup_alpha = max(0, 255 - int(progress * 220))
+
+            popup_text = self.small_font.render(
+                f"+{self.money_popup_amount}",
+                True,
+                GOLD,
+            )
+
+            popup_padding_x = 8
+            popup_padding_y = 3
+
+            popup_surface = pg.Surface(
+                (
+                    popup_text.get_width() + popup_padding_x * 2,
+                    popup_text.get_height() + popup_padding_y * 2,
+                ),
+                pg.SRCALPHA,
+            )
+
+            bg_color = (20, 20, 20, popup_alpha)
+            border_color = (240, 220, 50, popup_alpha)
+
+            pg.draw.rect(
+                popup_surface,
+                bg_color,
+                popup_surface.get_rect(),
+                border_radius=10,
+            )
+
+            pg.draw.rect(
+                popup_surface,
+                border_color,
+                popup_surface.get_rect(),
+                2,
+                border_radius=10,
+            )
+
+            popup_surface.blit(
+                popup_text,
+                (popup_padding_x, popup_padding_y),
+            )
+
+            popup_surface.set_alpha(popup_alpha)
+
+            self.screen.blit(popup_surface, (145, popup_y))
+
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (25, 165))
+            self.screen.blit(multiplier_text, (25, 185))
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -853,12 +1006,45 @@ class Game:
         stage = self.small_font.render(f"Reached Stage: {self.stage}", True, CYAN)
         self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 90))
 
-        if self.score >= self.best_score:
+        money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
+        self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, HEIGHT // 2 - 65))
+
+        """if self.score >= self.best_score:
             new_record = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(new_record, (WIDTH // 2 - new_record.get_width() // 2, HEIGHT // 2 - 60))
+            self.screen.blit(new_record, (WIDTH // 2 - new_record.get_width() // 2, HEIGHT // 2 - 35))
         else:
             high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
-            self.screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 55))
+            self.screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 32))"""
+
+        if self.is_new_high_score:
+            badge_text = self.tiny_font.render("NEW HIGH SCORE!", True, (10, 10, 10))
+
+            badge_padding_x = 14
+            badge_padding_y = 8
+            badge_width = badge_text.get_width() + badge_padding_x * 2
+            badge_height = badge_text.get_height() + badge_padding_y * 2
+
+            badge_x = WIDTH // 2 + 145
+            badge_y = HEIGHT // 2 - 190
+
+            badge_rect = pg.Rect(badge_x, badge_y, badge_width, badge_height)
+
+            pg.draw.rect(self.screen, YELLOW, badge_rect, border_radius=14)
+            pg.draw.rect(self.screen, WHITE, badge_rect, 2, border_radius=14)
+
+            self.screen.blit(
+                badge_text,
+                (
+                    badge_rect.centerx - badge_text.get_width() // 2,
+                    badge_rect.centery - badge_text.get_height() // 2,
+                ),
+            )
+        else:
+            high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
+            self.screen.blit(
+                high_score_text,
+                (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 35),
+            )
 
         button_y_start = HEIGHT // 2 - 20
         button_spacing = 60

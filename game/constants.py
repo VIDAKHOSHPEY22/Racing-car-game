@@ -7,6 +7,12 @@ DEFAULT_DIFFICULTY = "Medium"
 MENU_CARD_WIDTH = 560
 MENU_CARD_HEIGHT = 500
 
+SAVE_FILE_NAME = "save_data.json"
+
+COIN_SCORE_VALUE = 5
+COIN_MONEY_VALUE = 1
+OBSTACLE_PASS_SCORE = 1
+
 BLACK = (10, 10, 10)
 WHITE = (240, 240, 240)
 GRAY = (100, 100, 100)
@@ -43,6 +49,16 @@ DIFFICULTY_SETTINGS = {
     "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9), "max_speed": 80},
     "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12), "max_speed": 120},
     "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15), "max_speed": 160},
+}
+
+DEFAULT_SAVE_DATA = {
+    "high_score": 0,
+    "total_money": 0,
+    "best_stage": DEFAULT_STAGE,
+    "games_played": 0,
+    "total_score": 0,
+    "selected_skin": 0,
+    "selected_difficulty": DEFAULT_DIFFICULTY,
 }
 
 # Player speed / physics tuning (units: speed units per second)
