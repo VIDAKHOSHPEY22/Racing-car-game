@@ -1,6 +1,6 @@
 import pygame as pg
 
-from .constants import HEIGHT
+from .constants import HEIGHT, COIN_MONEY_VALUE, COIN_SCORE_VALUE
 
 
 class Coin:
@@ -10,6 +10,8 @@ class Coin:
         self.radius = 12
         self.color = (240, 220, 50)
         self.speed = 8
+        self.money_value = COIN_MONEY_VALUE
+        self.score_value = COIN_SCORE_VALUE
 
     def draw(self, screen):
         pg.draw.circle(screen, self.color, (self.x, self.y), self.radius)

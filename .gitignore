@@ -39,3 +39,6 @@ build/
 
 # Sensitive files
 .env
+
+# Local game save data
+save_data.json
