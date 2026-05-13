@@ -3,7 +3,7 @@
 ## Open Issues
 - [ ] Fix HUD hearts should look like ♥
 - [ ] Performance Improvements to make gameplay smoother
-- [ ] for HUD Menu on bootup it should have ← and →
+- [ ] for HUD Menu on bootup it should have arrow keys ← and →
 
 ## Completed
 
