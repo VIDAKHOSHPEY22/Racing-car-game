@@ -38,7 +38,7 @@ from .constants import (
     OBSTACLE_PASS_SCORE,
 )
 from .game_state import GameState
-from .music_utils import load_music
+from .music_utils import create_coin_sound, load_music
 from .road import Road
 from .storage import (
     load_save_data,
@@ -117,9 +117,13 @@ class Game:
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
         self.pause_menu_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 120, 160, 45, "MAIN MENU")
+        self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 - 20, 200, 45, "RESTART")
+        self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "MAIN MENU")
+        self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "QUIT")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
         self.current_music = load_music()
+        self.coin_sound = create_coin_sound()
         if self.current_music:
             pg.mixer.music.play(-1)
 
@@ -315,17 +319,13 @@ class Game:
             self.return_to_menu()
 
     def handle_game_over_click(self, mouse_pos):
-        button_y_start = HEIGHT // 2 - 20
-        button_spacing = 60
-        restart_button_rect = pg.Rect(WIDTH // 2 - 100, button_y_start, 200, 45)
-        menu_button_rect = pg.Rect(WIDTH // 2 - 100, button_y_start + button_spacing, 200, 45)
-        quit_button_rect = pg.Rect(WIDTH // 2 - 100, button_y_start + button_spacing * 2, 200, 45)
+        self.sync_game_over_button_rects()
 
-        if restart_button_rect.collidepoint(mouse_pos):
+        if self.game_over_restart_button.is_clicked(mouse_pos):
             self.reset_game()
-        if menu_button_rect.collidepoint(mouse_pos):
+        if self.game_over_menu_button.is_clicked(mouse_pos):
             self.return_to_menu()
-        if quit_button_rect.collidepoint(mouse_pos):
+        if self.game_over_quit_button.is_clicked(mouse_pos):
             if self.current_music:
                 pg.mixer.music.stop()
             pg.quit()
@@ -490,6 +490,8 @@ class Game:
             ):
                 coin.grow()
                 self.coins.remove(coin)
+                if self.coin_sound and not self.music_muted:
+                    self.coin_sound.play()
                 self.consecutive_actions += 1
                 self.update_multiplier()
 
@@ -643,6 +645,18 @@ class Game:
         self.high_score_button.rect.size = layout["score_button"].size
         self.exit_button.rect.topleft = layout["exit_button"].topleft
         self.exit_button.rect.size = layout["exit_button"].size
+
+    def sync_game_over_button_rects(self):
+        button_y_start = HEIGHT // 2 - 20
+        button_spacing = 60
+        button_size = (200, 45)
+
+        self.game_over_restart_button.rect.topleft = (WIDTH // 2 - 100, button_y_start)
+        self.game_over_restart_button.rect.size = button_size
+        self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing)
+        self.game_over_menu_button.rect.size = button_size
+        self.game_over_quit_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing * 2)
+        self.game_over_quit_button.rect.size = button_size
 
     def draw_menu_panel(self, rect, title):
         panel = pg.Surface(rect.size, pg.SRCALPHA)
@@ -988,6 +1002,8 @@ class Game:
         self.pause_menu_button.draw(self.screen, self.tiny_font)
 
     def draw_game_over(self):
+        self.sync_game_over_button_rects()
+
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
         overlay.fill((0, 0, 0, 200))
         self.screen.blit(overlay, (0, 0))
@@ -1046,15 +1062,12 @@ class Game:
                 (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 35),
             )
 
-        button_y_start = HEIGHT // 2 - 20
-        button_spacing = 60
-        restart_button = Button(WIDTH // 2 - 100, button_y_start, 200, 45, "RESTART")
-        restart_button.draw(self.screen, self.small_font)
-        menu_button = Button(WIDTH // 2 - 100, button_y_start + button_spacing, 200, 45, "MAIN MENU")
-        menu_button.draw(self.screen, self.small_font)
-        quit_button = Button(WIDTH // 2 - 100, button_y_start + button_spacing * 2, 200, 45, "QUIT")
-        quit_button.draw(self.screen, self.small_font)
+        self.game_over_restart_button.draw(self.screen, self.small_font)
+        self.game_over_menu_button.draw(self.screen, self.small_font)
+        self.game_over_quit_button.draw(self.screen, self.small_font)
 
+        button_y_start = self.game_over_restart_button.rect.y
+        button_spacing = 60
         hint_text = self.tiny_font.render("Press R to restart | ESC for menu", True, GRAY)
         self.screen.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, button_y_start + button_spacing * 3 + 10))
 

@@ -40,6 +40,13 @@ python atari.py
 ---
 ## ✨ Features
 
+## Recent Updates
+
+- Added a complete Game Over flow with Restart, Main Menu, and Quit actions.
+- Improved menu-to-game transitions so a new run starts cleanly from the main menu.
+- Added a dedicated coin pickup sound effect during gameplay.
+- Stabilized background music loading by resolving the music folder from the project root.
+
 | Feature                    | Description                                                                 |
 |----------------------------|-----------------------------------------------------------------------------|
 | 🚗 **Multiple Car Skins**      | Choose from several cool skins – new ones added by the community!           |
