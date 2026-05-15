@@ -12,6 +12,34 @@ SAVE_FILE_NAME = "save_data.json"
 COIN_SCORE_VALUE = 5
 COIN_MONEY_VALUE = 1
 OBSTACLE_PASS_SCORE = 1
+TRACK_OBJECT_WEIGHTS = {
+    "Easy": {
+        "car": 74,
+        "oil_spill": 8,
+        "water_puddle": 7,
+        "pothole": 5,
+        "barrier": 3,
+    },
+    "Medium": {
+        "car": 64,
+        "oil_spill": 12,
+        "water_puddle": 10,
+        "pothole": 8,
+        "barrier": 6,
+    },
+    "Hard": {
+        "car": 52,
+        "oil_spill": 16,
+        "water_puddle": 14,
+        "pothole": 12,
+        "barrier": 10,
+    },
+}
+HAZARD_EFFECT_DURATIONS = {
+    "oil_spill": 1400,
+    "water_puddle": 1900,
+    "pothole": 1100,
+}
 
 BLACK = (10, 10, 10)
 WHITE = (240, 240, 240)
@@ -46,9 +74,36 @@ CAR_SKINS = [
 ]
 
 DIFFICULTY_SETTINGS = {
-    "Easy": {"base_speed": 8, "obstacle_freq": 1500, "speed_increase": 0.1, "obstacle_speed": (6, 9), "max_speed": 80},
-    "Medium": {"base_speed": 10, "obstacle_freq": 1200, "speed_increase": 0.15, "obstacle_speed": (8, 12), "max_speed": 120},
-    "Hard": {"base_speed": 12, "obstacle_freq": 900, "speed_increase": 0.2, "obstacle_speed": (10, 15), "max_speed": 160},
+    "Easy": {
+        "base_speed": 8,
+        "obstacle_freq": 2200,
+        "speed_increase": 0.08,
+        "obstacle_speed": (5, 8),
+        "max_speed": 80,
+        "spawn_spacing": 190,
+        "freq_floor": 1450,
+        "freq_step": 70,
+    },
+    "Medium": {
+        "base_speed": 10,
+        "obstacle_freq": 1650,
+        "speed_increase": 0.12,
+        "obstacle_speed": (7, 10),
+        "max_speed": 120,
+        "spawn_spacing": 155,
+        "freq_floor": 1100,
+        "freq_step": 85,
+    },
+    "Hard": {
+        "base_speed": 12,
+        "obstacle_freq": 1180,
+        "speed_increase": 0.18,
+        "obstacle_speed": (9, 13),
+        "max_speed": 160,
+        "spawn_spacing": 125,
+        "freq_floor": 760,
+        "freq_step": 100,
+    },
 }
 
 DEFAULT_SAVE_DATA = {

@@ -22,10 +22,12 @@ from .constants import (
     GOLD,
     GRAY,
     GREEN,
+    HAZARD_EFFECT_DURATIONS,
     HEIGHT,
     MENU_CARD_HEIGHT,
     MENU_CARD_WIDTH,
     NAVY,
+    TRACK_OBJECT_WEIGHTS,
     PLAYER_START_LIVES,
     RED,
     SLATE,
@@ -38,6 +40,7 @@ from .constants import (
     OBSTACLE_PASS_SCORE,
 )
 from .game_state import GameState
+from .hazard import Hazard
 from .music_utils import create_coin_sound, load_music
 from .road import Road
 from .storage import (
@@ -93,6 +96,14 @@ class Game:
         self.multiplier_display_time = 0
         self.multiplier_text_pos = (0, 0)
         self.consecutive_actions = 0
+        self.next_stage_score = 3
+        self.skid_end_time = 0
+        self.skid_direction = 0
+        self.skid_strength = 0.0
+        self.water_slow_end_time = 0
+        self.pothole_recovery_end_time = 0
+        self.status_message = ""
+        self.status_message_until = 0
 
         self.player = None
         self.obstacles = []
@@ -182,6 +193,8 @@ class Game:
         self.multiplier_timer = 0
         self.multiplier_display_time = 0
         self.consecutive_actions = 0
+        self.next_stage_score = 3
+        self.clear_hazard_effects()
         self.update_player_bounds()
 
         if change_state:
@@ -355,20 +368,160 @@ class Game:
         if hasattr(coin, "road_ratio"):
             coin.x = self.road.get_travel_x(coin.y, coin.road_ratio, coin.radius * 2) + coin.radius
 
+    def clear_hazard_effects(self):
+        self.skid_end_time = 0
+        self.skid_direction = 0
+        self.skid_strength = 0.0
+        self.water_slow_end_time = 0
+        self.pothole_recovery_end_time = 0
+        self.status_message = ""
+        self.status_message_until = 0
+
+    def get_player_speed_fraction(self):
+        try:
+            vel = float(self.player.get_velocity())
+            frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
+            return max(0.0, min(1.0, frac))
+        except Exception:
+            return 0.0
+
+    def get_player_collision_rect(self):
+        frac = self.get_player_speed_fraction()
+        player_collision_y = int(self.player.y - frac * max(0, (self.player.y - HEIGHT // 2)))
+        return pg.Rect(self.player.x, player_collision_y, self.player.width, self.player.height)
+
+    def get_obstacle_rect(self, obstacle):
+        if hasattr(obstacle, "get_collision_rect"):
+            return obstacle.get_collision_rect()
+        return pg.Rect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
+
+    def can_spawn_obstacle(self, new_obstacle):
+        new_rect = self.get_obstacle_rect(new_obstacle)
+        spacing = DIFFICULTY_SETTINGS[self.selected_difficulty].get("spawn_spacing", 140)
+        for existing_obstacle in self.obstacles:
+            existing_rect = self.get_obstacle_rect(existing_obstacle)
+            vertical_gap = max(existing_obstacle.height, new_obstacle.height) + spacing
+            if abs(existing_obstacle.y - new_obstacle.y) < vertical_gap:
+                if existing_rect.inflate(22, 32).colliderect(new_rect):
+                    return False
+        return True
+
+    def create_track_obstacle(self, diff_settings):
+        track_weights = TRACK_OBJECT_WEIGHTS[self.selected_difficulty]
+        obstacle_kind = random.choices(
+            list(track_weights.keys()),
+            weights=list(track_weights.values()),
+            k=1,
+        )[0]
+        lane = random.randint(0, 2)
+        lane_ratio = (lane + 0.5) / 3
+        min_speed, max_speed = diff_settings["obstacle_speed"]
+
+        if obstacle_kind == "car":
+            color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
+            obstacle = Car(0, -150, color)
+            obstacle.kind = "car"
+            obstacle.label = "Traffic Car"
+            obstacle.damage_on_hit = True
+            obstacle.remove_on_hit = True
+            obstacle.shadow = True
+            obstacle.speed = random.randint(min_speed, max_speed)
+        else:
+            hazard_speed = random.randint(max(5, min_speed - 2), max(7, max_speed - 2))
+            spawn_y = -165 if obstacle_kind == "barrier" else -125
+            obstacle = Hazard(0, spawn_y, obstacle_kind, hazard_speed)
+
+        obstacle.road_ratio = lane_ratio
+        obstacle.x = self.road.get_travel_x(0, lane_ratio, obstacle.width)
+        return obstacle
+
+    def register_status_message(self, message, current_time, duration=1200):
+        self.status_message = message
+        self.status_message_until = current_time + duration
+
+    def update_player_handling(self, current_time, dt):
+        speed_val = getattr(self.player, "velocity", const.PLAYER_SPEED_DEFAULT)
+        base_lateral_speed = max(5, int(6 + speed_val / 12))
+        control_factor = 1.0
+
+        if current_time < self.water_slow_end_time:
+            control_factor *= 0.72
+        if current_time < self.pothole_recovery_end_time:
+            control_factor *= 0.84
+
+        self.player.speed = max(4, int(base_lateral_speed * control_factor))
+
+        if current_time < self.skid_end_time and self.skid_strength > 0:
+            self.player.x += int(self.skid_direction * self.skid_strength * dt)
+            self.skid_strength = max(0.0, self.skid_strength - 120 * dt)
+
+    def update_stage_progression(self):
+        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
+        while self.score >= self.next_stage_score:
+            self.level += 1
+            self.stage = self.level
+            self.obstacle_frequency = max(diff_settings.get("freq_floor", 600), self.obstacle_frequency - diff_settings.get("freq_step", 100))
+            self.current_speed = min(self.base_speed * 2.5, self.current_speed + diff_settings["speed_increase"] * 10)
+            self.next_stage_score += 3
+
+    def apply_hazard_effect(self, obstacle, current_time):
+        self.consecutive_actions = 0
+        self.update_multiplier()
+
+        if obstacle.kind == "oil_spill":
+            self.skid_end_time = current_time + HAZARD_EFFECT_DURATIONS["oil_spill"]
+            self.skid_direction = random.choice([-1, 1])
+            self.skid_strength = max(160.0, getattr(self.player, "velocity", const.MIN_SPEED) * 1.9)
+            self.player.velocity = max(const.MIN_SPEED, self.player.velocity - 4)
+            self.register_status_message("Oil spill: steering drift", current_time)
+        elif obstacle.kind == "water_puddle":
+            self.water_slow_end_time = current_time + HAZARD_EFFECT_DURATIONS["water_puddle"]
+            self.player.velocity = max(const.MIN_SPEED, self.player.velocity - 10)
+            self.register_status_message("Water puddle: traction reduced", current_time)
+        elif obstacle.kind == "pothole":
+            self.pothole_recovery_end_time = current_time + HAZARD_EFFECT_DURATIONS["pothole"]
+            self.player.velocity = max(const.MIN_SPEED, self.player.velocity - 14)
+            self.register_status_message("Pothole: suspension hit", current_time)
+
+    def get_active_hazard_statuses(self, current_time):
+        statuses = []
+        if current_time < self.skid_end_time:
+            statuses.append(("Oil drift active", (210, 210, 220)))
+        if current_time < self.water_slow_end_time:
+            statuses.append(("Water slow active", (96, 176, 240)))
+        if current_time < self.pothole_recovery_end_time:
+            statuses.append(("Pothole recovery", (196, 142, 110)))
+        return statuses
+
+    def draw_status_banner(self):
+        current_time = pg.time.get_ticks()
+        if current_time >= self.status_message_until or not self.status_message:
+            return
+
+        banner_text = self.tiny_font.render(self.status_message, True, WHITE)
+        banner_width = banner_text.get_width() + 28
+        banner = pg.Surface((banner_width, 34), pg.SRCALPHA)
+        banner.fill((12, 18, 28, 210))
+        pg.draw.rect(banner, (255, 255, 255, 45), (0, 0, banner_width, 34), 1, border_radius=12)
+        banner.blit(banner_text, (14, 8))
+        self.screen.blit(banner, (WIDTH // 2 - banner_width // 2, HEIGHT - 54))
+
     def update(self):
         if self.state != GameState.PLAYING or self.paused:
             return
 
+        current_time = pg.time.get_ticks()
         self.road.update()
         self.update_player_bounds()
+
+        dt = max(1 / FPS, self.clock.get_time() / 1000.0)
+        self.update_player_handling(current_time, dt)
 
         keys = pg.key.get_pressed()
         if keys[pg.K_LEFT]:
             self.player.move("left")
         if keys[pg.K_RIGHT]:
             self.player.move("right")
-        # Frame-time (seconds) for frame-independent accel/decel
-        dt = max(1 / FPS, self.clock.get_time() / 1000.0)
         # Brake input (S or Down) takes priority, then accelerate, otherwise friction
         if (keys[pg.K_s] or keys[pg.K_DOWN]) and hasattr(self.player, "accelerate"):
             # strong deceleration while braking
@@ -388,82 +541,44 @@ class Game:
             self.display_speed = float(self.current_speed)
         self.update_player_bounds()
 
-        current_time = pg.time.get_ticks()
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         speed_factor = max(self.current_speed / BASE_SPEED, 1)
 
         if current_time - self.last_obstacle_time > self.obstacle_frequency / speed_factor:
-            min_spacing = 120
-            safe_to_spawn = True
+            new_obstacle = self.create_track_obstacle(diff_settings)
+            if self.can_spawn_obstacle(new_obstacle):
+                self.obstacles.append(new_obstacle)
+                self.last_obstacle_time = current_time
 
-            for existing_obstacle in self.obstacles:
-                if existing_obstacle.y > -150 - min_spacing and existing_obstacle.y < -150 + min_spacing:
-                    safe_to_spawn = False
-                    break
-
-            if safe_to_spawn:
-                color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
-                lane = random.randint(0, 2)
-                lane_ratio = (lane + 0.5) / 3
-                x_position = self.road.get_travel_x(0, lane_ratio, 50)
-
-                new_obstacle = Car(x_position, -150, color)
-                new_obstacle.road_ratio = lane_ratio
-                min_speed, max_speed = diff_settings["obstacle_speed"]
-                new_obstacle.speed = random.randint(min_speed, max_speed)
-
-                can_spawn = True
-                for existing_obstacle in self.obstacles:
-                    if existing_obstacle.y > -200 and existing_obstacle.y < -100:
-                        if (
-                            new_obstacle.x < existing_obstacle.x + existing_obstacle.width
-                            and new_obstacle.x + new_obstacle.width > existing_obstacle.x
-                        ):
-                            can_spawn = False
-                            break
-
-                if can_spawn:
-                    self.obstacles.append(new_obstacle)
-                    self.last_obstacle_time = current_time
-
-            if self.score > 0 and self.score % 3 == 0:
-                self.level += 1
-                self.stage = self.level
-                self.obstacle_frequency = max(600, self.obstacle_frequency - 100)
-                self.current_speed = min(self.base_speed * 2.5, self.current_speed + diff_settings["speed_increase"] * 10)
-
+        player_rect = self.get_player_collision_rect()
         for obstacle in self.obstacles[:]:
             if obstacle.move():
                 self.obstacles.remove(obstacle)
                 self.consecutive_actions += 1
                 self.update_multiplier()
                 self.score += int(OBSTACLE_PASS_SCORE * self.score_multiplier)
+                self.update_stage_progression()
                 continue
             self.align_obstacle_to_road(obstacle)
 
-            try:
-                vel = float(self.player.get_velocity())
-                frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
-                frac = max(0.0, min(1.0, frac))
-            except Exception:
-                frac = 0.0
+            if player_rect.colliderect(self.get_obstacle_rect(obstacle)):
+                if isinstance(obstacle, Hazard) and not obstacle.damage_on_hit:
+                    self.apply_hazard_effect(obstacle, current_time)
+                    if obstacle in self.obstacles and obstacle.remove_on_hit:
+                        self.obstacles.remove(obstacle)
+                    continue
 
-            player_collision_y = int(
-                self.player.y - frac * max(0, (self.player.y - HEIGHT // 2))
-            )
-
-            if (
-                self.player.x < obstacle.x + obstacle.width
-                and self.player.x + self.player.width > obstacle.x
-                and player_collision_y < obstacle.y + obstacle.height
-                and player_collision_y + self.player.height > obstacle.y
-            ):
-                current_time = pg.time.get_ticks()
                 if current_time - self.last_damage_time > DAMAGE_COOLDOWN:
+                    self.consecutive_actions = 0
+                    self.update_multiplier()
                     self.lives -= 1
                     self.last_damage_time = current_time
                     self.damage_flash_time = current_time
-                    if obstacle in self.obstacles:
+                    if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
+                        self.register_status_message("Barrier impact: heavy damage", current_time)
+                    else:
+                        self.register_status_message("Collision: avoid traffic", current_time)
+                    if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
                         self.obstacles.remove(obstacle)
                     if self.lives <= 0:
                         self.enter_game_over()
@@ -503,6 +618,7 @@ class Game:
 
                 self.multiplier_display_time = pg.time.get_ticks()
                 self.multiplier_text_pos = (coin.x, coin.y)
+                self.update_stage_progression()
 
         if current_time - self.multiplier_timer > 3000:
             if self.score_multiplier > 1.0:
@@ -538,16 +654,18 @@ class Game:
             self.player.draw(self.screen, y_override=target_visual_y)
 
             # draw obstacles normally
-            for car in self.obstacles:
-                shadow = pg.Surface((car.width, car.height // 3), pg.SRCALPHA)
-                shadow.fill((0, 0, 0, 80))
-                self.screen.blit(shadow, (car.x, car.y + car.height - 10))
-                car.draw(self.screen)
+            for obstacle in self.obstacles:
+                if getattr(obstacle, "shadow", True):
+                    shadow = pg.Surface((obstacle.width, max(10, obstacle.height // 3)), pg.SRCALPHA)
+                    shadow.fill((0, 0, 0, 80))
+                    self.screen.blit(shadow, (obstacle.x, obstacle.y + obstacle.height - 10))
+                obstacle.draw(self.screen)
 
             for coin in self.coins:
                 coin.draw(self.screen)
 
             self.draw_scoreboard()
+            self.draw_status_banner()
             self.pause_button.draw(self.screen, self.tiny_font)
             self.sound_button.draw(self.screen, self.tiny_font)
             # Speed HUD: show player's forward velocity in top-right
@@ -779,33 +897,35 @@ class Game:
         self.score_animation += 0.1
         pulse = int(5 * abs(math.sin(self.score_animation)))
 
-        hud_bg = pg.Surface((280, 220), pg.SRCALPHA)
-        hud_bg.fill((0, 0, 0, 180))
-        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, 280, 220), 3, border_radius=10)
+        hud_width = 236
+        hud_height = 394
+        hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
+        hud_bg.fill((10, 14, 22, 208))
+        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
 
-        for index in range(220):
-            alpha = int(30 * (1 - index / 220))
-            pg.draw.line(hud_bg, (50, 180, 80, alpha), (0, index), (280, index))
+        for index in range(hud_height):
+            alpha = int(30 * (1 - index / hud_height))
+            pg.draw.line(hud_bg, (38, 164, 184, alpha), (0, index), (hud_width, index))
 
         self.screen.blit(hud_bg, (10, 10))
 
         score_color = (255, 255, 100 + pulse) if self.score > 0 else WHITE
         score_text = self.small_font.render(f"Score: {self.score}", True, score_color)
-        self.screen.blit(score_text, (25, 25))
+        self.screen.blit(score_text, (24, 24))
 
         stage_text = self.small_font.render(f"Stage: {self.stage}", True, CYAN)
-        self.screen.blit(stage_text, (25, 55))
+        self.screen.blit(stage_text, (24, 52))
 
         speed_val = getattr(self, "display_speed", self.current_speed)
         speed_text = self.small_font.render(f"Speed: {speed_val:.1f} km/h", True, GREEN)
-        self.screen.blit(speed_text, (25, 85))
+        self.screen.blit(speed_text, (24, 80))
 
         lives_label = self.small_font.render("Lives:", True, WHITE)
-        self.screen.blit(lives_label, (25, 115))
+        self.screen.blit(lives_label, (24, 108))
 
         for i in range(self.lives):
-            heart_x = 112 + i * 34
-            heart_y = 126
+            heart_x = 108 + i * 30
+            heart_y = 118
             heart_points = []
 
             for angle in range(0, 360, 10):
@@ -820,7 +940,7 @@ class Game:
             pg.draw.polygon(self.screen, WHITE, heart_points, 1)
 
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
-        self.screen.blit(mode_text, (25, 145))
+        self.screen.blit(mode_text, (24, 142))
 
         display_money = self.total_money
 
@@ -834,14 +954,14 @@ class Game:
             True,
             GOLD,
         )
-        self.screen.blit(money_text, (25, 165))
+        self.screen.blit(money_text, (24, 160))
 
         popup_age = pg.time.get_ticks() - self.money_popup_start_time
         popup_duration = 950
 
         if self.money_popup_amount > 0 and popup_age < popup_duration:
             progress = popup_age / popup_duration
-            popup_y = 162 - int(progress * 22)
+            popup_y = 158 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
             popup_text = self.small_font.render(
@@ -886,12 +1006,53 @@ class Game:
 
             popup_surface.set_alpha(popup_alpha)
 
-            self.screen.blit(popup_surface, (145, popup_y))
+            self.screen.blit(popup_surface, (136, popup_y))
 
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (25, 185))
+            self.screen.blit(multiplier_text, (24, 182))
+
+        section_title = self.tiny_font.render("Track Watch", True, WHITE)
+        self.screen.blit(section_title, (24, 204))
+
+        legend_items = [
+            ("Oil", "drift", (210, 210, 220)),
+            ("Water", "slow", (96, 176, 240)),
+            ("Pothole", "drop", (196, 142, 110)),
+            ("Barrier", "hit", (232, 98, 32)),
+        ]
+        for index, (label, effect, color) in enumerate(legend_items):
+            card_x = 24
+            card_y = 226 + index * 22
+            card = pg.Surface((188, 20), pg.SRCALPHA)
+            card.fill((255, 255, 255, 12))
+            pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
+            pg.draw.circle(card, color, (10, 10), 4)
+            label_text = self.tiny_font.render(label, True, WHITE)
+            effect_text = self.tiny_font.render(effect, True, color)
+            card.blit(label_text, (18, 2))
+            card.blit(effect_text, (18 + label_text.get_width() + 6, 2))
+            self.screen.blit(card, (card_x, card_y))
+
+        active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
+        status_title = self.tiny_font.render("Active", True, YELLOW)
+        self.screen.blit(status_title, (24, 318))
+        if active_statuses:
+            for index, (label, color) in enumerate(active_statuses[:3]):
+                badge = pg.Surface((188, 18), pg.SRCALPHA)
+                badge.fill((255, 255, 255, 10))
+                pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
+                status_text = self.tiny_font.render(label, True, color)
+                badge.blit(status_text, (8, 2))
+                self.screen.blit(badge, (24, 340 + index * 16))
+        else:
+            badge = pg.Surface((188, 18), pg.SRCALPHA)
+            badge.fill((255, 255, 255, 10))
+            pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
+            status_text = self.tiny_font.render("Road stable", True, GREEN)
+            badge.blit(status_text, (8, 2))
+            self.screen.blit(badge, (24, 340))
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
