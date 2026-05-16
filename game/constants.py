@@ -110,6 +110,7 @@ DEFAULT_SAVE_DATA = {
     "high_score": 0,
     "total_money": 0,
     "best_stage": DEFAULT_STAGE,
+    "best_distance": 0,
     "games_played": 0,
     "total_score": 0,
     "selected_skin": 0,

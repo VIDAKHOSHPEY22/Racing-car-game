@@ -37,6 +37,11 @@ def _normalize_save_data(data):
         normalized["best_stage"] = 1
 
     try:
+        normalized["best_distance"] = max(0, int(normalized.get("best_distance", 0)))
+    except (TypeError, ValueError):
+        normalized["best_distance"] = 0
+
+    try:
         normalized["games_played"] = max(0, int(normalized.get("games_played", 0)))
     except (TypeError, ValueError):
         normalized["games_played"] = 0
@@ -90,18 +95,35 @@ def write_high_score(score):
     return save_save_data(save_data)["high_score"]
 
 
-def update_progress(score, stage, money_earned):
+def update_progress(score, stage, money_earned, distance=None):
+    """Update persistent progress. Optionally pass `distance` to update best_distance.
+
+    Backwards compatible: callers that don't pass `distance` continue to work.
+    """
+    def _coerce_int(v, default=0):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return default
+
     save_data = load_save_data()
 
-    score = max(0, int(score))
-    stage = max(1, int(stage))
-    money_earned = max(0, int(money_earned))
+    score = max(0, _coerce_int(score, 0))
+    stage = max(1, _coerce_int(stage, 1))
+    money_earned = max(0, _coerce_int(money_earned, 0))
 
     save_data["high_score"] = max(save_data["high_score"], score)
     save_data["best_stage"] = max(save_data["best_stage"], stage)
     save_data["total_money"] += money_earned
     save_data["total_score"] += score
     save_data["games_played"] += 1
+
+    if distance is not None:
+        try:
+            dist_val = max(0, int(distance))
+            save_data["best_distance"] = max(save_data.get("best_distance", 0), dist_val)
+        except (TypeError, ValueError):
+            pass
 
     return save_save_data(save_data)
 

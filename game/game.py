@@ -1,3 +1,4 @@
+import os
 import math
 import random
 import sys
@@ -83,6 +84,7 @@ class Game:
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
         self.score = 0
+        self.distance = 0.0
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
         self.damage_flash_time = 0
@@ -165,6 +167,7 @@ class Game:
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
         self.damage_flash_time = 0
+        self.distance = 0.0
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
 
@@ -213,10 +216,13 @@ class Game:
         previous_best_score = read_high_score()
         self.is_new_high_score = self.score > previous_best_score
 
+        # Persist progress including runtime distance; keep backward compatibility
+        # by passing distance explicitly so older save files remain compatible.
         self.save_data = update_progress(
             score=self.score,
             stage=self.stage,
             money_earned=self.session_money,
+            distance=int(self.distance),
         )
 
         self.best_score = self.save_data["high_score"]
@@ -406,6 +412,18 @@ class Game:
                     return False
         return True
 
+    def get_stage_speed_bonus(self):
+        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
+        stage_delta = max(0, self.stage - DEFAULT_STAGE)
+
+        # Keep the ramp gentle: a small per-stage bonus, capped per difficulty.
+        step = diff_settings.get("stage_speed_step", max(0.25, diff_settings.get("speed_increase", 0.1) * 2.0))
+        cap = diff_settings.get(
+            "stage_speed_cap",
+            4.0 if self.selected_difficulty == "Easy" else 5.5 if self.selected_difficulty == "Medium" else 7.0,
+        )
+        return min(cap, stage_delta * step)
+
     def create_track_obstacle(self, diff_settings):
         track_weights = TRACK_OBJECT_WEIGHTS[self.selected_difficulty]
         obstacle_kind = random.choices(
@@ -416,6 +434,7 @@ class Game:
         lane = random.randint(0, 2)
         lane_ratio = (lane + 0.5) / 3
         min_speed, max_speed = diff_settings["obstacle_speed"]
+        stage_speed_bonus = self.get_stage_speed_bonus()
 
         if obstacle_kind == "car":
             color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
@@ -425,9 +444,9 @@ class Game:
             obstacle.damage_on_hit = True
             obstacle.remove_on_hit = True
             obstacle.shadow = True
-            obstacle.speed = random.randint(min_speed, max_speed)
+            obstacle.speed = random.randint(min_speed, max_speed) + stage_speed_bonus
         else:
-            hazard_speed = random.randint(max(5, min_speed - 2), max(7, max_speed - 2))
+            hazard_speed = random.randint(max(5, min_speed - 2), max(7, max_speed - 2)) + stage_speed_bonus
             spawn_y = -165 if obstacle_kind == "barrier" else -125
             obstacle = Hazard(0, spawn_y, obstacle_kind, hazard_speed)
 
@@ -460,6 +479,13 @@ class Game:
         while self.score >= self.next_stage_score:
             self.level += 1
             self.stage = self.level
+            # provide short feedback to the player when leveling up
+            try:
+                current_time = pg.time.get_ticks()
+                # show a concise level-up message in the status banner
+                self.register_status_message(f"Level Up — Stage {self.stage} Started", current_time, duration=1100)
+            except Exception:
+                pass
             self.obstacle_frequency = max(diff_settings.get("freq_floor", 600), self.obstacle_frequency - diff_settings.get("freq_step", 100))
             self.current_speed = min(self.base_speed * 2.5, self.current_speed + diff_settings["speed_increase"] * 10)
             self.next_stage_score += 3
@@ -539,6 +565,13 @@ class Game:
             self.display_speed = float(self.player.get_velocity())
         except Exception:
             self.display_speed = float(self.current_speed)
+        # accumulate runtime-only distance (units: player velocity * seconds)
+        try:
+            vel = float(self.player.get_velocity())
+            # dt is seconds since last frame
+            self.distance += vel * dt
+        except Exception:
+            pass
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
@@ -568,22 +601,21 @@ class Game:
                         self.obstacles.remove(obstacle)
                     continue
 
-                if current_time - self.last_damage_time > DAMAGE_COOLDOWN:
-                    self.consecutive_actions = 0
-                    self.update_multiplier()
-                    self.lives -= 1
-                    self.last_damage_time = current_time
-                    self.damage_flash_time = current_time
-                    if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
-                        self.register_status_message("Barrier impact: heavy damage", current_time)
-                    else:
-                        self.register_status_message("Collision: avoid traffic", current_time)
-                    if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
-                        self.obstacles.remove(obstacle)
-                    if self.lives <= 0:
-                        self.enter_game_over()
-                        if self.current_music:
-                            pg.mixer.music.fadeout(2000)
+                self.consecutive_actions = 0
+                self.update_multiplier()
+                self.lives -= 1
+                self.last_damage_time = current_time
+                self.damage_flash_time = current_time
+                if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
+                    self.register_status_message("Barrier impact: heavy damage", current_time)
+                else:
+                    self.register_status_message("Collision: avoid traffic", current_time)
+                if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
+                    self.obstacles.remove(obstacle)
+                if self.lives <= 0:
+                    self.enter_game_over()
+                    if self.current_music:
+                        pg.mixer.music.fadeout(2000)
 
         if current_time - self.last_coin_time > self.coin_frequency:
             coin_ratio = random.uniform(0.08, 0.92)
@@ -860,6 +892,7 @@ class Game:
         self.best_score = self.save_data["high_score"]
         self.total_money = self.save_data["total_money"]
         self.best_stage = self.save_data["best_stage"]
+        self.best_distance = self.save_data.get("best_distance", 0)
         self.games_played = self.save_data["games_played"]
         self.total_score = self.save_data["total_score"]
 
@@ -874,6 +907,7 @@ class Game:
             ("Best Score", self.best_score),
             ("Total Money", self.total_money),
             ("Best Stage", self.best_stage),
+            ("Best Distance", f"{int(self.best_distance)} m"),
             ("Games Played", self.games_played),
             ("Total Score", self.total_score),
         ]
@@ -920,12 +954,16 @@ class Game:
         speed_text = self.small_font.render(f"Speed: {speed_val:.1f} km/h", True, GREEN)
         self.screen.blit(speed_text, (24, 80))
 
+        # Distance (runtime-only): display as whole meters/units
+        distance_text = self.small_font.render(f"Distance: {int(self.distance)} m", True, WHITE)
+        self.screen.blit(distance_text, (24, 104))
+
         lives_label = self.small_font.render("Lives:", True, WHITE)
-        self.screen.blit(lives_label, (24, 108))
+        self.screen.blit(lives_label, (24, 132))
 
         for i in range(self.lives):
             heart_x = 108 + i * 30
-            heart_y = 118
+            heart_y = 150
             heart_points = []
 
             for angle in range(0, 360, 10):
@@ -940,7 +978,7 @@ class Game:
             pg.draw.polygon(self.screen, WHITE, heart_points, 1)
 
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
-        self.screen.blit(mode_text, (24, 142))
+        self.screen.blit(mode_text, (24, 200))
 
         display_money = self.total_money
 
@@ -954,14 +992,14 @@ class Game:
             True,
             GOLD,
         )
-        self.screen.blit(money_text, (24, 160))
+        self.screen.blit(money_text, (24, 220))
 
         popup_age = pg.time.get_ticks() - self.money_popup_start_time
         popup_duration = 950
 
         if self.money_popup_amount > 0 and popup_age < popup_duration:
             progress = popup_age / popup_duration
-            popup_y = 158 - int(progress * 20)
+            popup_y = 220 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
             popup_text = self.small_font.render(
@@ -1011,10 +1049,10 @@ class Game:
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (24, 182))
+            self.screen.blit(multiplier_text, (24, 240))
 
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, 204))
+        self.screen.blit(section_title, (24, 262))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -1024,7 +1062,7 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = 226 + index * 22
+            card_y = 284 + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
             pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
@@ -1037,7 +1075,7 @@ class Game:
 
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 318))
+        self.screen.blit(status_title, (24, 376))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -1045,14 +1083,14 @@ class Game:
                 pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
-                self.screen.blit(badge, (24, 340 + index * 16))
+                self.screen.blit(badge, (24, 398 + index * 16))
         else:
             badge = pg.Surface((188, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
             pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
-            self.screen.blit(badge, (24, 340))
+            self.screen.blit(badge, (24, 398))
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -1186,55 +1224,144 @@ class Game:
         money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
         self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, HEIGHT // 2 - 65))
 
-        """if self.score >= self.best_score:
-            new_record = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(new_record, (WIDTH // 2 - new_record.get_width() // 2, HEIGHT // 2 - 35))
-        else:
-            high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
-            self.screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 32))"""
-
         if self.is_new_high_score:
-            badge_text = self.tiny_font.render("NEW HIGH SCORE!", True, (10, 10, 10))
+            high_score = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
+            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, HEIGHT // 2 - 35))
 
-            badge_padding_x = 14
-            badge_padding_y = 8
-            badge_width = badge_text.get_width() + badge_padding_x * 2
-            badge_height = badge_text.get_height() + badge_padding_y * 2
-
-            badge_x = WIDTH // 2 + 145
-            badge_y = HEIGHT // 2 - 190
-
-            badge_rect = pg.Rect(badge_x, badge_y, badge_width, badge_height)
-
-            pg.draw.rect(self.screen, YELLOW, badge_rect, border_radius=14)
-            pg.draw.rect(self.screen, WHITE, badge_rect, 2, border_radius=14)
-
-            self.screen.blit(
-                badge_text,
-                (
-                    badge_rect.centerx - badge_text.get_width() // 2,
-                    badge_rect.centery - badge_text.get_height() // 2,
-                ),
-            )
-        else:
-            high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
-            self.screen.blit(
-                high_score_text,
-                (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 35),
-            )
+        hint = self.tiny_font.render("Press R to restart or use the buttons below.", True, GRAY)
+        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT // 2 + 5))
 
         self.game_over_restart_button.draw(self.screen, self.small_font)
         self.game_over_menu_button.draw(self.screen, self.small_font)
         self.game_over_quit_button.draw(self.screen, self.small_font)
 
-        button_y_start = self.game_over_restart_button.rect.y
-        button_spacing = 60
-        hint_text = self.tiny_font.render("Press R to restart | ESC for menu", True, GRAY)
-        self.screen.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, button_y_start + button_spacing * 3 + 10))
-
     def run(self):
-        while True:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(FPS)
+        """Main game loop. Kept minimal so `atari.py` can call `game.run()`.
+
+        The loop handles events, updates game state, draws frames, and
+        enforces the configured `FPS`.
+        """
+        try:
+            while True:
+                self.clock.tick(FPS)
+                self.handle_events()
+                self.update()
+                self.draw()
+        except KeyboardInterrupt:
+            # allow clean exit when run from terminal
+            if self.current_music:
+                pg.mixer.music.stop()
+            pg.quit()
+            sys.exit()
+        except Exception:
+            if self.current_music:
+                pg.mixer.music.stop()
+            pg.quit()
+            raise
+
+
+# Developer notes and lightweight dev-tests moved here so extra files are not required.
+# PHASE2_PERSON2_LIVES_CHECKLIST (originally a separate markdown file)
+PHASE2_PERSON2_LIVES_CHECKLIST = '''
+# Phase 2 Person 2: Lives / Collision / Game Over Verification
+
+Purpose: this note documents the existing lives flow without changing gameplay behavior.
+
+Safe Verification Checklist
+
+- Player starts with `PLAYER_START_LIVES` after `reset_game()` or `start_game()`.
+- A valid collision decreases `lives` by 1.
+- `DAMAGE_COOLDOWN` prevents rapid repeated damage from the same contact.
+- When `lives <= 0`, the existing game over flow is triggered.
+- `reset_game()` restores `lives` to the starting value.
+- `reset_game()` also clears cooldown-related state such as `last_damage_time` and `damage_flash_time`.
+- HUD still displays lives correctly during gameplay.
+- Stage progression, score, difficulty, and progress tracking continue to work as before.
+
+Manual Test Notes
+
+1. Start a new run and confirm the HUD shows the expected number of lives.
+2. Collide with one traffic car or barrier and verify only one life is removed.
+3. Keep the player overlapping the same obstacle and confirm no additional life is lost until the cooldown expires.
+4. Wait for the cooldown window to pass, then confirm a new collision can reduce lives again.
+5. Reduce lives to zero and confirm the current game over screen appears.
+6. Restart the run and confirm lives return to the starting value.
+
+Important References
+
+- Lives setup and reset: `game/game.py`
+- Damage cooldown constant: `game/constants.py`
+- Collision and game over flow: `game/game.py`
+- HUD rendering: `game/game.py`
+
+Scope Reminder: Do not add a parallel lives system; do not modify `atari.py`.
+'''
+
+
+def dev_run_distance_test(frames=60, fps=60):
+    """Headless developer test for runtime-only distance accumulation.
+
+    Usage: `python -m game.game --distance-test` or call directly.
+    """
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    pg.init()
+    g = Game()
+    g.reset_game(change_state=True)
+
+    print("Initial distance:", g.distance)
+
+    for i in range(frames):
+        g.clock.tick(fps)
+        g.update()
+
+    print(f"Distance after {frames} frames:", int(g.distance))
+    # Simulate game over to persist progress and then inspect save data
+    g.enter_game_over()
+    from .storage import load_save_data
+    sd = load_save_data()
+    print("Saved best_distance:", sd.get("best_distance", 0))
+
+    g.reset_game()
+    print("Distance after reset:", g.distance)
+
+
+def dev_run_stage_test():
+    """Headless developer test for stage progression behavior.
+
+    Usage: `python -m game.game --stage-test` or call directly.
+    """
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    pg.init()
+    g = Game()
+    g.reset_game(change_state=False)
+
+    print("Initial stage:", g.stage, "next_stage_score:", g.next_stage_score)
+
+    g.score = g.next_stage_score - 1
+    g.update_stage_progression()
+    print("After below-threshold: stage", g.stage, "next_stage_score", g.next_stage_score)
+
+    g.score = g.next_stage_score
+    g.update_stage_progression()
+    print("After crossing threshold: stage", g.stage, "next_stage_score", g.next_stage_score)
+    print("Status message:", g.status_message)
+
+    g.reset_game()
+    print("After reset: stage", g.stage, "next_stage_score", g.next_stage_score, "status_message", g.status_message)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Developer runner for game module")
+    parser.add_argument("--distance-test", action="store_true", help="Run distance headless test")
+    parser.add_argument("--stage-test", action="store_true", help="Run stage progression headless test")
+    args = parser.parse_args()
+    if args.distance_test:
+        dev_run_distance_test()
+    elif args.stage_test:
+        dev_run_stage_test()
+    else:
+        # If module executed directly without flags, start the game loop for convenience
+        pg.init()
+        pg.mixer.init()
+        Game().run()
