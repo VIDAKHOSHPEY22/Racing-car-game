@@ -62,6 +62,11 @@ SLATE = (24, 31, 44)
 SURFACE = (18, 20, 30)
 SURFACE_ALT = (32, 40, 58)
 
+# Toggle whether the finish sign is visually drawn on screen.
+# Set to False to keep an invisible trigger (finish still works).
+# User requested visible finish line at end of each level — enable it.
+SHOW_FINISH_SIGN = True
+
 CAR_SKINS = [
     {"name": "Blue Racer", "color": BLUE, "type": "sedan"},
     {"name": "Red Speedster", "color": RED, "type": "sedan"},
@@ -116,6 +121,55 @@ DEFAULT_SAVE_DATA = {
     "selected_skin": 0,
     "selected_difficulty": DEFAULT_DIFFICULTY,
 }
+
+# Stage configuration definitions. Keep these small and data-driven so future
+# systems (weather, night, curves) can be attached via the 'future_*' fields.
+# Only tune minimal gameplay-facing values here.
+STAGE_DEFINITIONS = {
+    1: {
+        "stage_id": 1,
+        "distance_target": 560,  # meters to reach finish line
+        "enemy_speed_multiplier": 0.9,
+        "obstacle_frequency": 2400,
+        "traffic_density": 0.6,  # 0..1 relative density
+        "future_weather_slot": None,
+        "future_environment_flags": [],
+        "finish_pass_buffer": 8,  # extra meters to cross finish line
+    },
+    2: {
+        "stage_id": 2,
+        "distance_target": 900,
+        "enemy_speed_multiplier": 1.04,
+        "obstacle_frequency": 2050,
+        "traffic_density": 0.68,
+        "future_weather_slot": None,
+        "future_environment_flags": [],
+        "finish_pass_buffer": 8,
+    },
+    3: {
+        "stage_id": 3,
+        "distance_target": 1220,
+        "enemy_speed_multiplier": 1.14,
+        "obstacle_frequency": 1700,
+        "traffic_density": 0.78,
+        "future_weather_slot": None,
+        "future_environment_flags": [],
+        "finish_pass_buffer": 10,
+    },
+    4: {
+        "stage_id": 4,
+        "distance_target": 1600,
+        "enemy_speed_multiplier": 1.24,
+        "obstacle_frequency": 1500,
+        "traffic_density": 0.86,
+        "future_weather_slot": None,
+        "future_environment_flags": [],
+        "finish_pass_buffer": 10,
+    },
+}
+
+# Maximum stage players can reach before the game ends.
+# (Previous STAGE_MAX removed — stages are unbounded by this constant)
 
 # Player speed / physics tuning (units: speed units per second)
 # Default player forward speed while driving
