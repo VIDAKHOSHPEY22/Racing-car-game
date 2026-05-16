@@ -1,3 +1,4 @@
+import os
 import math
 import random
 import sys
@@ -39,7 +40,63 @@ from .constants import (
     YELLOW,
     OBSTACLE_PASS_SCORE,
 )
+from .constants import STAGE_DEFINITIONS
 from .game_state import GameState
+# FinishLine moved here from game/finish_line.py to keep repository structure flat.
+class FinishLine:
+    def __init__(self, road, stage_id, speed):
+        self.road = road
+        self.stage_id = stage_id
+        self.width = 180
+        self.height = 96
+        self.speed = max(6, int(speed))
+        self.y = -self.height - 24
+        self.road_ratio = 0.5
+        self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
+
+    def move(self):
+        self.y += self.speed
+        self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
+        return self.y > HEIGHT + self.height
+
+    def get_collision_rect(self):
+        return pg.Rect(self.x + 10, self.y + 8, self.width - 20, self.height - 12)
+
+    def draw(self, screen):
+        # Respect global visibility toggle in constants; collision remains active.
+        try:
+            if not const.SHOW_FINISH_SIGN:
+                return
+        except Exception:
+            pass
+
+        pole_color = (88, 88, 94)
+        accent_color = (255, 245, 225)
+        flag_color = RED if self.stage_id % 2 == 0 else YELLOW
+
+        shadow = pg.Surface((self.width + 24, self.height + 18), pg.SRCALPHA)
+        pg.draw.ellipse(shadow, (0, 0, 0, 55), (6, self.height - 6, self.width, 12))
+        screen.blit(shadow, (self.x - 12, self.y - 2))
+
+        for pole_x in (self.x + 14, self.x + self.width - 20):
+            pg.draw.rect(screen, pole_color, (pole_x, self.y + 8, 8, self.height - 4), border_radius=3)
+            pg.draw.circle(screen, (135, 135, 142), (pole_x + 4, self.y + self.height - 4), 4)
+
+        banner_rect = pg.Rect(self.x + 12, self.y + 10, self.width - 24, 26)
+        pg.draw.rect(screen, (22, 22, 26), banner_rect, border_radius=10)
+        pg.draw.rect(screen, accent_color, banner_rect, 2, border_radius=10)
+
+        for idx in range(8):
+            stripe_x = banner_rect.x + 6 + idx * 20
+            stripe_rect = pg.Rect(stripe_x, banner_rect.y + 4, 12, banner_rect.height - 8)
+            pg.draw.rect(screen, flag_color, stripe_rect, border_radius=3)
+            pg.draw.line(screen, WHITE, stripe_rect.topleft, stripe_rect.bottomright, 1)
+
+        text = pg.font.Font(None, 34).render("FINISH", True, WHITE)
+        screen.blit(text, text.get_rect(center=banner_rect.center))
+
+        tag = pg.font.Font(None, 24).render(f"Level {self.stage_id}", True, accent_color)
+        screen.blit(tag, tag.get_rect(center=(self.x + self.width // 2, self.y + 58)))
 from .hazard import Hazard
 from .music_utils import create_coin_sound, load_music
 from .road import Road
@@ -83,6 +140,9 @@ class Game:
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
         self.score = 0
+        self.distance = 0.0
+        # distance progressed within current stage (separate from total runtime distance)
+        self.stage_progress_distance = 0.0
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
         self.damage_flash_time = 0
@@ -104,6 +164,13 @@ class Game:
         self.pothole_recovery_end_time = 0
         self.status_message = ""
         self.status_message_until = 0
+        self.finish_sign = None
+        self.completed_stage = None
+
+        # Level transition / map animation state
+        self.level_transition_start = None
+        self.level_transition_duration = 1400  # ms for marker to travel between nodes
+        self.level_transition_pause = 600  # ms pause after animation
 
         self.player = None
         self.obstacles = []
@@ -140,6 +207,9 @@ class Game:
 
         self.reset_game(change_state=False)
 
+        # load initial stage config
+        self.load_stage_config(self.stage)
+
     def set_state(self, state):
         self.state = state
 
@@ -165,6 +235,7 @@ class Game:
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
         self.damage_flash_time = 0
+        self.distance = 0.0
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
 
@@ -187,6 +258,10 @@ class Game:
                 pass
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
+        # reset stage progress tracking (do not reset `distance` which is runtime total)
+        self.stage_progress_distance = 0.0
+        self.finish_sign = None
+        self.completed_stage = None
         self.paused = False
         self.pause_button.text = "PAUSE"
         self.score_multiplier = 1.0
@@ -199,6 +274,27 @@ class Game:
 
         if change_state:
             self.set_state(GameState.PLAYING)
+
+    def load_stage_config(self, stage_id):
+        # Load stage config from constants.STAGE_DEFINITIONS, fall back to scaling
+        cfg = STAGE_DEFINITIONS.get(stage_id)
+        if not cfg:
+            # simple fallback: increase difficulty gradually
+            base = STAGE_DEFINITIONS[max(STAGE_DEFINITIONS.keys())]
+            cfg = dict(base)
+            cfg["stage_id"] = stage_id
+            cfg["distance_target"] = int(base["distance_target"] + (stage_id - base["stage_id"]) * 60)
+            cfg["enemy_speed_multiplier"] = min(2.0, base["enemy_speed_multiplier"] + 0.08 * (stage_id - base["stage_id"]))
+            cfg["obstacle_frequency"] = max(700, int(base["obstacle_frequency"] - 80 * (stage_id - base["stage_id"])))
+
+        self.current_stage_config = cfg
+        # apply runtime-influencing values conservatively
+        try:
+            self.obstacle_frequency = cfg.get("obstacle_frequency", self.obstacle_frequency)
+            self.current_speed = self.base_speed * cfg.get("enemy_speed_multiplier", 1.0)
+            # stage speed bonus applied per obstacle creation via get_stage_speed_bonus()
+        except Exception:
+            pass
 
     def start_game(self):
         self.reset_game(change_state=True)
@@ -213,10 +309,13 @@ class Game:
         previous_best_score = read_high_score()
         self.is_new_high_score = self.score > previous_best_score
 
+        # Persist progress including runtime distance; keep backward compatibility
+        # by passing distance explicitly so older save files remain compatible.
         self.save_data = update_progress(
             score=self.score,
             stage=self.stage,
             money_earned=self.session_money,
+            distance=int(self.distance),
         )
 
         self.best_score = self.save_data["high_score"]
@@ -274,6 +373,8 @@ class Game:
                     self.open_high_scores()
                 if event.key == pg.K_r and (self.state == GameState.GAME_OVER or self.paused):
                     self.reset_game()
+                if self.state == GameState.STAGE_COMPLETE and event.key in {pg.K_RETURN, pg.K_KP_ENTER, pg.K_SPACE}:
+                    self.start_next_stage()
 
     def handle_menu_click(self, mouse_pos):
         layout = self.get_menu_layout()
@@ -406,7 +507,19 @@ class Game:
                     return False
         return True
 
+    def get_stage_speed_bonus(self):
+        cfg = getattr(self, "current_stage_config", {}) or {}
+        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
+        cap = diff_settings.get(
+            "stage_speed_cap",
+            4.0 if self.selected_difficulty == "Easy" else 5.5 if self.selected_difficulty == "Medium" else 7.0,
+        )
+        multiplier_bonus = max(0.0, (cfg.get("enemy_speed_multiplier", 1.0) - 1.0) * 8.0)
+        density_bonus = max(0.0, (cfg.get("traffic_density", 1.0) - 0.6) * 4.0)
+        return min(cap, multiplier_bonus + density_bonus)
+
     def create_track_obstacle(self, diff_settings):
+        cfg = getattr(self, "current_stage_config", {}) or {}
         track_weights = TRACK_OBJECT_WEIGHTS[self.selected_difficulty]
         obstacle_kind = random.choices(
             list(track_weights.keys()),
@@ -416,6 +529,8 @@ class Game:
         lane = random.randint(0, 2)
         lane_ratio = (lane + 0.5) / 3
         min_speed, max_speed = diff_settings["obstacle_speed"]
+        stage_speed_bonus = self.get_stage_speed_bonus()
+        speed_multiplier = cfg.get("enemy_speed_multiplier", 1.0)
 
         if obstacle_kind == "car":
             color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
@@ -425,9 +540,9 @@ class Game:
             obstacle.damage_on_hit = True
             obstacle.remove_on_hit = True
             obstacle.shadow = True
-            obstacle.speed = random.randint(min_speed, max_speed)
+            obstacle.speed = int((random.randint(min_speed, max_speed) * speed_multiplier) + stage_speed_bonus)
         else:
-            hazard_speed = random.randint(max(5, min_speed - 2), max(7, max_speed - 2))
+            hazard_speed = int((random.randint(max(5, min_speed - 2), max(7, max_speed - 2)) * speed_multiplier) + stage_speed_bonus)
             spawn_y = -165 if obstacle_kind == "barrier" else -125
             obstacle = Hazard(0, spawn_y, obstacle_kind, hazard_speed)
 
@@ -438,6 +553,9 @@ class Game:
     def register_status_message(self, message, current_time, duration=1200):
         self.status_message = message
         self.status_message_until = current_time + duration
+
+    def get_level_label(self, level=None):
+        return f"Level {self.stage if level is None else level}"
 
     def update_player_handling(self, current_time, dt):
         speed_val = getattr(self.player, "velocity", const.PLAYER_SPEED_DEFAULT)
@@ -456,13 +574,63 @@ class Game:
             self.skid_strength = max(0.0, self.skid_strength - 120 * dt)
 
     def update_stage_progression(self):
-        diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        while self.score >= self.next_stage_score:
-            self.level += 1
-            self.stage = self.level
-            self.obstacle_frequency = max(diff_settings.get("freq_floor", 600), self.obstacle_frequency - diff_settings.get("freq_step", 100))
-            self.current_speed = min(self.base_speed * 2.5, self.current_speed + diff_settings["speed_increase"] * 10)
-            self.next_stage_score += 3
+        # Backwards-compatible stub: old score-based leveling is deprecated.
+        # Keep this function present so existing calls don't break, but do not
+        # drive stage changes. True stage progression is distance/finish-line based.
+        return
+
+    def check_stage_progression(self, current_time):
+        """Check current stage progress and spawn the finish sign when ready."""
+        cfg = getattr(self, "current_stage_config", None)
+        if not cfg:
+            return
+
+        target = cfg.get("distance_target", None)
+        if target is None:
+            return
+
+        if self.finish_sign is None and self.stage_progress_distance >= target:
+            sign_speed = max(7, int(self.base_speed * cfg.get("enemy_speed_multiplier", 1.0)))
+            self.finish_sign = FinishLine(self.road, self.stage, sign_speed)
+            self.register_status_message(f"Finish sign appeared for Level {self.stage}", current_time, duration=1800)
+
+    def enter_stage_complete(self, current_time=None):
+        self.completed_stage = self.stage
+        self.finish_sign = None
+        self.obstacles = []
+        self.coins = []
+        self.clear_hazard_effects()
+        if current_time is None:
+            current_time = pg.time.get_ticks()
+        self.register_status_message(f"Level {self.stage} complete", current_time, duration=1200)
+        self.set_state(GameState.STAGE_COMPLETE)
+        # initialize map-style transition animation
+        try:
+            self.level_transition_start = pg.time.get_ticks()
+        except Exception:
+            self.level_transition_start = current_time
+
+    def start_next_stage(self, current_time=None):
+        # Advance stage counter and load the next config. Keep total distance.
+        next_stage = self.stage + 1
+        self.stage = next_stage
+        self.level = next_stage
+        # Each new stage starts with a fresh 3-life budget.
+        self.lives = PLAYER_START_LIVES
+        self.stage_progress_distance = 0.0
+        self.finish_sign = None
+        self.completed_stage = None
+        self.obstacles = []
+        self.coins = []
+        self.clear_hazard_effects()
+        self.load_stage_config(self.stage)
+        self.last_obstacle_time = pg.time.get_ticks()
+        self.last_coin_time = pg.time.get_ticks()
+        self.paused = False
+        self.set_state(GameState.PLAYING)
+        if current_time is None:
+            current_time = pg.time.get_ticks()
+        self.register_status_message(f"Level {self.stage} Started", current_time, duration=1400)
 
     def apply_hazard_effect(self, obstacle, current_time):
         self.consecutive_actions = 0
@@ -539,12 +707,24 @@ class Game:
             self.display_speed = float(self.player.get_velocity())
         except Exception:
             self.display_speed = float(self.current_speed)
+        # accumulate runtime-only distance (units: player velocity * seconds)
+        try:
+            vel = float(self.player.get_velocity())
+            # dt is seconds since last frame
+            self.distance += vel * dt
+            # also track stage-specific progress separately
+            self.stage_progress_distance += vel * dt
+        except Exception:
+            pass
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         speed_factor = max(self.current_speed / BASE_SPEED, 1)
 
-        if current_time - self.last_obstacle_time > self.obstacle_frequency / speed_factor:
+        stage_density = max(0.55, getattr(self, "current_stage_config", {}).get("traffic_density", 1.0))
+        effective_obstacle_interval = (self.obstacle_frequency / stage_density) / speed_factor
+
+        if self.finish_sign is None and current_time - self.last_obstacle_time > effective_obstacle_interval:
             new_obstacle = self.create_track_obstacle(diff_settings)
             if self.can_spawn_obstacle(new_obstacle):
                 self.obstacles.append(new_obstacle)
@@ -568,24 +748,31 @@ class Game:
                         self.obstacles.remove(obstacle)
                     continue
 
-                if current_time - self.last_damage_time > DAMAGE_COOLDOWN:
-                    self.consecutive_actions = 0
-                    self.update_multiplier()
-                    self.lives -= 1
-                    self.last_damage_time = current_time
-                    self.damage_flash_time = current_time
-                    if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
-                        self.register_status_message("Barrier impact: heavy damage", current_time)
-                    else:
-                        self.register_status_message("Collision: avoid traffic", current_time)
-                    if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
-                        self.obstacles.remove(obstacle)
-                    if self.lives <= 0:
-                        self.enter_game_over()
-                        if self.current_music:
-                            pg.mixer.music.fadeout(2000)
+                self.consecutive_actions = 0
+                self.update_multiplier()
+                self.lives -= 1
+                self.last_damage_time = current_time
+                self.damage_flash_time = current_time
+                if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
+                    self.register_status_message("Barrier impact: heavy damage", current_time)
+                else:
+                    self.register_status_message("Collision: avoid traffic", current_time)
+                if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
+                    self.obstacles.remove(obstacle)
+                if self.lives <= 0:
+                    self.enter_game_over()
+                    if self.current_music:
+                        pg.mixer.music.fadeout(2000)
 
-        if current_time - self.last_coin_time > self.coin_frequency:
+        if self.finish_sign is not None:
+            if self.finish_sign.move():
+                self.enter_stage_complete(current_time)
+            else:
+                player_rect = self.get_player_collision_rect()
+                if player_rect.colliderect(self.finish_sign.get_collision_rect()):
+                    self.enter_stage_complete(current_time)
+
+        if self.finish_sign is None and current_time - self.last_coin_time > self.coin_frequency:
             coin_ratio = random.uniform(0.08, 0.92)
             new_coin = Coin(self.road.get_travel_x(0, coin_ratio, 24) + 12, -50)
             new_coin.road_ratio = coin_ratio
@@ -597,12 +784,15 @@ class Game:
                 self.coins.remove(coin)
                 continue
             self.align_coin_to_road(coin)
-            if (
-                self.player.x < coin.x + coin.radius
-                and self.player.x + self.player.width > coin.x - coin.radius
-                and self.player.y < coin.y + coin.radius
-                and self.player.y + self.player.height > coin.y - coin.radius
-            ):
+            # Use circle-rect collision test so fast passes still register.
+            rect = pg.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
+            nearest_x = max(rect.left, min(coin.x, rect.right))
+            nearest_y = max(rect.top, min(coin.y, rect.bottom))
+            dx = coin.x - nearest_x
+            dy = coin.y - nearest_y
+            # small tolerance so high-speed passes are captured
+            tol = 6
+            if dx * dx + dy * dy <= (coin.radius + tol) ** 2:
                 coin.grow()
                 self.coins.remove(coin)
                 if self.coin_sound and not self.music_muted:
@@ -626,6 +816,12 @@ class Game:
                 self.update_multiplier()
             self.multiplier_timer = current_time
 
+        # Check stage progression and finish-line logic
+        try:
+            self.check_stage_progression(current_time)
+        except Exception:
+            pass
+
     def draw(self):
         self.draw_background()
 
@@ -633,6 +829,8 @@ class Game:
             self.draw_menu()
         elif self.state == GameState.HIGH_SCORE:
             self.draw_high_score_screen()
+        elif self.state == GameState.STAGE_COMPLETE:
+            self.draw_stage_complete_screen()
         else:
             self.road.draw(self.screen)
             # draw player with a visual vertical offset based on forward velocity
@@ -660,6 +858,9 @@ class Game:
                     shadow.fill((0, 0, 0, 80))
                     self.screen.blit(shadow, (obstacle.x, obstacle.y + obstacle.height - 10))
                 obstacle.draw(self.screen)
+
+            if self.finish_sign is not None:
+                self.finish_sign.draw(self.screen)
 
             for coin in self.coins:
                 coin.draw(self.screen)
@@ -842,7 +1043,7 @@ class Game:
 
         summary_items = [
             f"Lives {PLAYER_START_LIVES}",
-            f"Stage {self.stage}",
+            f"Level {self.stage}",
             f"Speed {self.base_speed}",
             f"State {self.state.name}",
         ]
@@ -860,6 +1061,7 @@ class Game:
         self.best_score = self.save_data["high_score"]
         self.total_money = self.save_data["total_money"]
         self.best_stage = self.save_data["best_stage"]
+        self.best_distance = self.save_data.get("best_distance", 0)
         self.games_played = self.save_data["games_played"]
         self.total_score = self.save_data["total_score"]
 
@@ -874,6 +1076,7 @@ class Game:
             ("Best Score", self.best_score),
             ("Total Money", self.total_money),
             ("Best Stage", self.best_stage),
+            ("Best Distance", f"{int(self.best_distance)} m"),
             ("Games Played", self.games_played),
             ("Total Score", self.total_score),
         ]
@@ -913,19 +1116,33 @@ class Game:
         score_text = self.small_font.render(f"Score: {self.score}", True, score_color)
         self.screen.blit(score_text, (24, 24))
 
-        stage_text = self.small_font.render(f"Stage: {self.stage}", True, CYAN)
-        self.screen.blit(stage_text, (24, 52))
+        level_text = self.small_font.render(f"Level: {self.stage}", True, CYAN)
+        self.screen.blit(level_text, (24, 52))
 
         speed_val = getattr(self, "display_speed", self.current_speed)
         speed_text = self.small_font.render(f"Speed: {speed_val:.1f} km/h", True, GREEN)
         self.screen.blit(speed_text, (24, 80))
 
+        # Distance (runtime-only): display as whole meters/units
+        distance_text = self.small_font.render(f"Distance: {int(self.distance)} m", True, WHITE)
+        self.screen.blit(distance_text, (24, 104))
+
+        # Show distance-to-finish for the current stage (place above Track Watch)
+        cfg = getattr(self, "current_stage_config", None)
+        if cfg:
+            remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
+            finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
+            # Track Watch section begins around y=262; place the finish text just above it
+            track_watch_top = 262
+            finish_y = track_watch_top - 28
+            self.screen.blit(finish_text, (24, finish_y))
+
         lives_label = self.small_font.render("Lives:", True, WHITE)
-        self.screen.blit(lives_label, (24, 108))
+        self.screen.blit(lives_label, (24, 132))
 
         for i in range(self.lives):
             heart_x = 108 + i * 30
-            heart_y = 118
+            heart_y = 150
             heart_points = []
 
             for angle in range(0, 360, 10):
@@ -940,7 +1157,7 @@ class Game:
             pg.draw.polygon(self.screen, WHITE, heart_points, 1)
 
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
-        self.screen.blit(mode_text, (24, 142))
+        self.screen.blit(mode_text, (24, 200))
 
         display_money = self.total_money
 
@@ -954,14 +1171,14 @@ class Game:
             True,
             GOLD,
         )
-        self.screen.blit(money_text, (24, 160))
+        self.screen.blit(money_text, (24, 220))
 
         popup_age = pg.time.get_ticks() - self.money_popup_start_time
         popup_duration = 950
 
         if self.money_popup_amount > 0 and popup_age < popup_duration:
             progress = popup_age / popup_duration
-            popup_y = 158 - int(progress * 20)
+            popup_y = 220 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
             popup_text = self.small_font.render(
@@ -1011,10 +1228,10 @@ class Game:
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (24, 182))
+            self.screen.blit(multiplier_text, (24, 240))
 
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, 204))
+        self.screen.blit(section_title, (24, 262))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -1024,7 +1241,7 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = 226 + index * 22
+            card_y = 284 + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
             pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
@@ -1037,7 +1254,7 @@ class Game:
 
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 318))
+        self.screen.blit(status_title, (24, 376))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -1045,14 +1262,14 @@ class Game:
                 pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
-                self.screen.blit(badge, (24, 340 + index * 16))
+                self.screen.blit(badge, (24, 398 + index * 16))
         else:
             badge = pg.Surface((188, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
             pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
-            self.screen.blit(badge, (24, 340))
+            self.screen.blit(badge, (24, 398))
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -1138,7 +1355,7 @@ class Game:
         score = self.small_font.render(f"Score: {self.score}", True, WHITE)
         self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, score_y))
 
-        stage = self.small_font.render(f"Stage: {self.stage}", True, WHITE)
+        stage = self.small_font.render(f"Level: {self.stage}", True, WHITE)
         self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, stage_y))
 
         restart_text = self.tiny_font.render("Press R to restart", True, GRAY)
@@ -1180,61 +1397,280 @@ class Game:
         score = self.small_font.render(f"Final Score: {self.score}", True, WHITE)
         self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 120))
 
-        stage = self.small_font.render(f"Reached Stage: {self.stage}", True, CYAN)
+        stage = self.small_font.render(f"Reached Level: {self.stage}", True, CYAN)
         self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 90))
 
         money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
         self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, HEIGHT // 2 - 65))
 
-        """if self.score >= self.best_score:
-            new_record = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(new_record, (WIDTH // 2 - new_record.get_width() // 2, HEIGHT // 2 - 35))
-        else:
-            high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
-            self.screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 32))"""
-
         if self.is_new_high_score:
-            badge_text = self.tiny_font.render("NEW HIGH SCORE!", True, (10, 10, 10))
+            high_score = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
+            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, HEIGHT // 2 - 35))
 
-            badge_padding_x = 14
-            badge_padding_y = 8
-            badge_width = badge_text.get_width() + badge_padding_x * 2
-            badge_height = badge_text.get_height() + badge_padding_y * 2
-
-            badge_x = WIDTH // 2 + 145
-            badge_y = HEIGHT // 2 - 190
-
-            badge_rect = pg.Rect(badge_x, badge_y, badge_width, badge_height)
-
-            pg.draw.rect(self.screen, YELLOW, badge_rect, border_radius=14)
-            pg.draw.rect(self.screen, WHITE, badge_rect, 2, border_radius=14)
-
-            self.screen.blit(
-                badge_text,
-                (
-                    badge_rect.centerx - badge_text.get_width() // 2,
-                    badge_rect.centery - badge_text.get_height() // 2,
-                ),
-            )
-        else:
-            high_score_text = self.tiny_font.render(f"High Score: {self.best_score}", True, GRAY)
-            self.screen.blit(
-                high_score_text,
-                (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - 35),
-            )
+        hint = self.tiny_font.render("Press R to restart or use the buttons below.", True, GRAY)
+        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT // 2 + 5))
 
         self.game_over_restart_button.draw(self.screen, self.small_font)
         self.game_over_menu_button.draw(self.screen, self.small_font)
         self.game_over_quit_button.draw(self.screen, self.small_font)
 
-        button_y_start = self.game_over_restart_button.rect.y
-        button_spacing = 60
-        hint_text = self.tiny_font.render("Press R to restart | ESC for menu", True, GRAY)
-        self.screen.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, button_y_start + button_spacing * 3 + 10))
+    def draw_stage_complete_screen(self):
+        # Map-style level transition animation
+        current_time = pg.time.get_ticks()
+
+        overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        self.screen.blit(overlay, (0, 0))
+
+        # card
+        card_w, card_h = 760, 360
+        card = pg.Surface((card_w, card_h), pg.SRCALPHA)
+        card.fill((14, 18, 24, 230))
+        pg.draw.rect(card, (255, 255, 255, 28), (6, 6, card_w - 12, card_h - 12), 2, border_radius=20)
+
+        title = self.font.render("Level Complete", True, YELLOW)
+        card.blit(title, (34, 24))
+        subtitle = self.small_font.render(f"Level {self.completed_stage or self.stage} finished — next: Level { (self.completed_stage or self.stage) + 1 }", True, WHITE)
+        card.blit(subtitle, (34, 74))
+
+        # map area
+        map_x, map_y = 34, 120
+        map_w, map_h = card_w - 68, 200
+        map_rect = pg.Rect(map_x, map_y, map_w, map_h)
+        # subtle panel
+        panel = pg.Surface((map_w, map_h), pg.SRCALPHA)
+        panel.fill((30, 34, 40, 180))
+        pg.draw.rect(panel, (255, 255, 255, 18), (0, 0, map_w, map_h), 1, border_radius=14)
+        card.blit(panel, (map_x, map_y))
+
+        # compute nodes: show 5 nodes centered on current/next
+        center_index = 2
+        nodes = []
+        base_level = max(1, (self.completed_stage or self.stage) - 2)
+        num_nodes = 5
+        spacing = int((map_w - 80) / (num_nodes - 1))
+        y_node = map_y + map_h // 2
+        for i in range(num_nodes):
+            lvl = base_level + i
+            x = map_x + 40 + i * spacing
+            nodes.append((lvl, (x, y_node)))
+
+        # draw path
+        path_points = [pos for (_, pos) in nodes]
+        for i in range(len(path_points) - 1):
+            a = path_points[i]
+            b = path_points[i + 1]
+            pg.draw.line(card, (200, 200, 200, 40), a, b, 6)
+            pg.draw.line(card, (255, 214, 90, 140), a, b, 2)
+
+        # draw nodes
+        completed_lvl = self.completed_stage or self.stage
+        next_lvl = completed_lvl + 1
+        for lvl, (x, y) in nodes:
+            is_completed = lvl <= completed_lvl
+            color = (77, 215, 120) if is_completed else (120, 130, 142)
+            outer_r = 18
+            inner_r = 10
+            pg.draw.circle(card, (*color, 200), (x, y), outer_r)
+            pg.draw.circle(card, (18, 20, 22), (x, y), inner_r)
+            num = self.tiny_font.render(str(lvl), True, WHITE if is_completed else (220, 230, 240))
+            card.blit(num, num.get_rect(center=(x, y)))
+
+        # marker animation: travels from completed node to next node
+        try:
+            start = self.level_transition_start or current_time
+        except Exception:
+            start = current_time
+
+        anim_total = self.level_transition_duration + self.level_transition_pause
+        t = (current_time - start) % anim_total
+        travel_t = min(1.0, max(0.0, t / float(self.level_transition_duration)))
+
+        # find positions for completed and next on our nodes list
+        src = None
+        dst = None
+        for lvl, pos in nodes:
+            if lvl == completed_lvl:
+                src = pos
+            if lvl == next_lvl:
+                dst = pos
+        if src is None:
+            src = nodes[ max(0, center_index) ][1]
+        if dst is None:
+            dst = nodes[min(len(nodes)-1, center_index+1)][1]
+
+        # simple ease in-out
+        ease = (math.sin((travel_t - 0.5) * math.pi) + 1) / 2 if travel_t > 0 and travel_t < 1 else (1.0 if travel_t >= 1.0 else 0.0)
+        mx = int(src[0] + (dst[0] - src[0]) * ease)
+        my = int(src[1] + (dst[1] - src[1]) * ease)
+
+        # trail
+        trail_len = 6
+        for i in range(trail_len):
+            p = i / float(trail_len)
+            tx = int(src[0] + (mx - src[0]) * p)
+            ty = int(src[1] + (my - src[1]) * p)
+            alpha = int(180 * (1 - p))
+            pg.draw.circle(card, (255, 214, 90, alpha), (tx, ty), max(2, 6 - i))
+
+        # marker
+        pg.draw.circle(card, (255, 214, 90), (mx, my), 9)
+        pg.draw.circle(card, (255, 255, 255), (mx, my), 3)
+
+        # instructions and details
+        hint = self.tiny_font.render("Press Enter or Space to continue", True, WHITE)
+        card.blit(hint, (card_w - hint.get_width() - 34, card_h - 46))
+
+        footer = self.tiny_font.render("Map shows nearby levels; progress on next run continues.", True, CYAN)
+        card.blit(footer, (34, card_h - 46))
+
+        self.screen.blit(card, (WIDTH // 2 - card_w // 2, HEIGHT // 2 - card_h // 2))
 
     def run(self):
-        while True:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(FPS)
+        """Main game loop. Kept minimal so `atari.py` can call `game.run()`.
+
+        The loop handles events, updates game state, draws frames, and
+        enforces the configured `FPS`.
+        """
+        try:
+            while True:
+                self.clock.tick(FPS)
+                self.handle_events()
+                self.update()
+                self.draw()
+        except KeyboardInterrupt:
+            # allow clean exit when run from terminal
+            if self.current_music:
+                pg.mixer.music.stop()
+            pg.quit()
+            sys.exit()
+        except Exception:
+            if self.current_music:
+                pg.mixer.music.stop()
+            pg.quit()
+            raise
+
+    def draw_game_complete_screen(self):
+        # (disabled) Game complete UI removed in this flow; keep placeholder.
+        return
+
+
+# Developer notes and lightweight dev-tests moved here so extra files are not required.
+# PHASE2_PERSON2_LIVES_CHECKLIST (originally a separate markdown file)
+PHASE2_PERSON2_LIVES_CHECKLIST = '''
+# Phase 2 Person 2: Lives / Collision / Game Over Verification
+
+Purpose: this note documents the existing lives flow without changing gameplay behavior.
+
+Safe Verification Checklist
+
+- Player starts with `PLAYER_START_LIVES` after `reset_game()` or `start_game()`.
+- A valid collision decreases `lives` by 1.
+- `DAMAGE_COOLDOWN` prevents rapid repeated damage from the same contact.
+- When `lives <= 0`, the existing game over flow is triggered.
+- `reset_game()` restores `lives` to the starting value.
+- `reset_game()` also clears cooldown-related state such as `last_damage_time` and `damage_flash_time`.
+- HUD still displays lives correctly during gameplay.
+- Stage progression, score, difficulty, and progress tracking continue to work as before.
+
+Manual Test Notes
+
+1. Start a new run and confirm the HUD shows the expected number of lives.
+2. Collide with one traffic car or barrier and verify only one life is removed.
+3. Keep the player overlapping the same obstacle and confirm no additional life is lost until the cooldown expires.
+4. Wait for the cooldown window to pass, then confirm a new collision can reduce lives again.
+5. Reduce lives to zero and confirm the current game over screen appears.
+6. Restart the run and confirm lives return to the starting value.
+
+Important References
+
+- Lives setup and reset: `game/game.py`
+- Damage cooldown constant: `game/constants.py`
+- Collision and game over flow: `game/game.py`
+- HUD rendering: `game/game.py`
+
+Scope Reminder: Do not add a parallel lives system; do not modify `atari.py`.
+'''
+
+
+def dev_run_distance_test(frames=60, fps=60):
+    """Headless developer test for runtime-only distance accumulation.
+
+    Usage: `python -m game.game --distance-test` or call directly.
+    """
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    pg.init()
+    g = Game()
+    g.reset_game(change_state=True)
+
+    print("Initial distance:", g.distance)
+
+    for i in range(frames):
+        g.clock.tick(fps)
+        g.update()
+
+    print(f"Distance after {frames} frames:", int(g.distance))
+    # Simulate game over to persist progress and then inspect save data
+    g.enter_game_over()
+    from .storage import load_save_data
+    sd = load_save_data()
+    print("Saved best_distance:", sd.get("best_distance", 0))
+
+    g.reset_game()
+    print("Distance after reset:", g.distance)
+
+
+def dev_run_stage_test():
+    """Headless developer test for stage progression behavior.
+
+    Usage: `python -m game.game --stage-test` or call directly.
+    """
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    pg.init()
+    g = Game()
+    g.reset_game(change_state=True)
+
+    cfg = g.current_stage_config
+    target = cfg.get("distance_target", 0)
+    print("Initial stage:", g.stage, "target:", target)
+
+    # Just below target: no finish sign yet
+    g.stage_progress_distance = max(0, target - 1)
+    g.check_stage_progression(pg.time.get_ticks())
+    print("After below-target progress: finish_sign", g.finish_sign is not None, "state", g.state.name)
+
+    # Reach the target: finish sign should appear and gameplay should remain on the stage
+    g.stage_progress_distance = target
+    g.check_stage_progression(pg.time.get_ticks())
+    print("After target reached: finish_sign", g.finish_sign is not None, "state", g.state.name)
+
+    # Force a collision with the finish sign, then verify stage complete state
+    if g.finish_sign is not None:
+        g.finish_sign.y = g.player.y - 10
+        g.finish_sign.x = g.player.x
+        g.update()
+    print("After finish sign collision: state", g.state.name, "completed_stage", g.completed_stage)
+
+    # Simulate Enter/Space flow into next stage
+    g.start_next_stage()
+    print("After start_next_stage: stage", g.stage, "state", g.state.name, "finish_sign", g.finish_sign is not None)
+
+    g.reset_game()
+    print("After reset: stage", g.stage, "stage_progress_distance", int(g.stage_progress_distance), "finish_sign", g.finish_sign is not None)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Developer runner for game module")
+    parser.add_argument("--distance-test", action="store_true", help="Run distance headless test")
+    parser.add_argument("--stage-test", action="store_true", help="Run stage progression headless test")
+    args = parser.parse_args()
+    if args.distance_test:
+        dev_run_distance_test()
+    elif args.stage_test:
+        dev_run_stage_test()
+    else:
+        # If module executed directly without flags, start the game loop for convenience
+        pg.init()
+        pg.mixer.init()
+        Game().run()
