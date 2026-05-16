@@ -40,12 +40,22 @@ python atari.py
 ---
 ## ✨ Features
 
-## Recent Updates
+## Recent Updates (Latest Release)
 
-- Added a complete Game Over flow with Restart, Main Menu, and Quit actions.
-- Improved menu-to-game transitions so a new run starts cleanly from the main menu.
-- Added a dedicated coin pickup sound effect during gameplay.
-- Stabilized background music loading by resolving the music folder from the project root.
+### 🎯 7 Major Features Added:
+- **🔄 Pause System** - Press `P` or `ESC` to pause/resume gameplay with live score display
+- **🎯 Difficulty Selection** - Choose between Easy, Medium, or Hard modes with different speeds and obstacle frequency
+- **🎨 Car Skins System** - 8 unique car designs in different colors and types with live preview
+- **📊 Enhanced Scoreboard** - Animated scoreboard with pulsing effects showing score, level, speed, and difficulty
+- **💀 Game Over Menu** - Three post-game options (Restart, Main Menu, Quit) with keyboard shortcuts
+- **🔊 Sound Toggle** - Easy on/off switch for music and sound effects during gameplay
+- **⚡ Score Multiplier System** - Dynamic multiplier (1.0x to 3.0x) that increases with consecutive coin pickups
+
+**Previous Updates:**
+- Added a complete Game Over flow with Restart, Main Menu, and Quit actions
+- Improved menu-to-game transitions so a new run starts cleanly
+- Added dedicated coin pickup sound effect during gameplay
+- Stabilized background music loading from project root
 
 | Feature                    | Description                                                                 |
 |----------------------------|-----------------------------------------------------------------------------|
@@ -63,13 +73,13 @@ python atari.py
 ---
 ## 🎮 Controls
 
-| Key        | Action                     |
-|------------|----------------------------|
-| `←` `→`    | Move Left / Right          |
-| `P`        | Pause / Resume             |
-| `R`        | Restart Game               |
-| `M`        | Toggle Sound & Music       |
-| `ESC`      | Quit Game                  |
+| Key        | Action                          |
+|------------|---------------------------------|
+| `←` `→`    | Move Left / Right               |
+| `P` / `ESC`| Pause / Resume Gameplay         |
+| `R`        | Restart Game                    |
+| `M`        | Toggle Sound & Music            |
+| `ESCAPE`   | Return to Main Menu / Quit      |
 
 ---
 
