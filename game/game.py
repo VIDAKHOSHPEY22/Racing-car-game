@@ -101,8 +101,10 @@ from .hazard import Hazard
 from .music_utils import create_coin_sound, load_music
 from .road import Road
 from .storage import (
+    buy_skin,
     load_save_data,
     read_high_score,
+    select_skin,
     update_progress,
     save_player_preferences,
 )
@@ -125,7 +127,7 @@ class Game:
         self.save_data = load_save_data()
         self.selected_skin = self.save_data.get("selected_skin", 0)
         self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
-        self.selected_difficulty = DEFAULT_DIFFICULTY
+        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
 
         if self.selected_difficulty not in DIFFICULTY_SETTINGS:
             self.selected_difficulty = DEFAULT_DIFFICULTY
@@ -189,8 +191,15 @@ class Game:
         self.money_popup_start_time = 0
 
         self.play_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 120, 200, 60, "START RACE")
+        self.garage_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "GARAGE")
         self.high_score_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "HIGH SCORES")
         self.menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 250, 200, 45, "MAIN MENU")
+        self.garage_buy_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 125, 220, 45, "BUY")
+        self.garage_select_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 125, 220, 45, "SELECT")
+        self.garage_back_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 185, 200, 45, "BACK")
+        self.garage_index = self.selected_skin
+        self.garage_message = ""
+        self.garage_message_until = 0
         self.exit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 310, 200, 45, "EXIT")
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
@@ -216,6 +225,72 @@ class Game:
     def _sync_player_skin(self):
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
+
+    def _get_selected_skin_stats(self):
+        skin = CAR_SKINS[self.selected_skin]
+        return {
+            "speed_bonus": float(skin.get("speed_bonus", 0)),
+            "handling_bonus": float(skin.get("handling_bonus", 0)),
+        }
+
+    def _apply_vehicle_starting_stats(self):
+        if self.player is None:
+            return
+
+        stats = self._get_selected_skin_stats()
+
+        if hasattr(self.player, "velocity"):
+            self.player.velocity = float(const.PLAYER_SPEED_DEFAULT + stats["speed_bonus"])
+
+    def _get_unlocked_skin_indices(self):
+        unlocked = self.save_data.get("unlocked_skins", [0])
+        valid_indices = []
+
+        for index in unlocked:
+            try:
+                index = int(index)
+            except (TypeError, ValueError):
+                continue
+
+            if 0 <= index < len(CAR_SKINS) and index not in valid_indices:
+                valid_indices.append(index)
+
+        if 0 not in valid_indices:
+            valid_indices.insert(0, 0)
+
+        return valid_indices or [0]
+
+    def _refresh_profile_from_save(self):
+        self.save_data = load_save_data()
+        self.selected_skin = self.save_data.get("selected_skin", 0)
+        self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
+        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
+
+        if self.selected_difficulty not in DIFFICULTY_SETTINGS:
+            self.selected_difficulty = DEFAULT_DIFFICULTY
+
+        self.total_money = self.save_data.get("total_money", 0)
+        self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
+        self.games_played = self.save_data.get("games_played", 0)
+        self.total_score = self.save_data.get("total_score", 0)
+        self._sync_player_skin()
+
+    def _cycle_unlocked_skin(self, direction):
+        unlocked = self._get_unlocked_skin_indices()
+
+        if self.selected_skin not in unlocked:
+            self.selected_skin = unlocked[0]
+
+        current_pos = unlocked.index(self.selected_skin)
+        self.selected_skin = unlocked[(current_pos + direction) % len(unlocked)]
+
+        self._sync_player_skin()
+        self.save_preferences()
+        self.reset_game(change_state=False)
+
+    def register_garage_message(self, message, duration=1600):
+        self.garage_message = message
+        self.garage_message_until = pg.time.get_ticks() + duration
 
     def reset_game(self, change_state=True):
         self._sync_player_skin()
@@ -245,17 +320,16 @@ class Game:
         try:
             import game.constants as const
 
-            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED))
+            vehicle_stats = self._get_selected_skin_stats()
+            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED)) + vehicle_stats["speed_bonus"]
         except Exception:
             pass
         self.current_speed = self.base_speed
-        # ensure player's internal velocity starts at the PLAYER_SPEED_DEFAULT
-        from .constants import PLAYER_SPEED_DEFAULT
-        if self.player and hasattr(self.player, "velocity"):
-            try:
-                self.player.velocity = float(PLAYER_SPEED_DEFAULT)
-            except Exception:
-                pass
+        # ensure player's internal velocity starts with the selected vehicle speed bonus
+        try:
+            self._apply_vehicle_starting_stats()
+        except Exception:
+            pass
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
         # reset stage progress tracking (do not reset `distance` which is runtime total)
@@ -358,6 +432,8 @@ class Game:
                 elif self.state == GameState.HIGH_SCORE:
                     if self.menu_button.is_clicked(event.pos):
                         self.return_to_menu()
+                elif self.state == GameState.GARAGE:
+                    self.handle_garage_click(event.pos)
                 elif self.state == GameState.PLAYING:
                     self.handle_playing_click(event.pos)
                 elif self.state == GameState.GAME_OVER:
@@ -371,6 +447,17 @@ class Game:
                         self.return_to_menu()
                 if event.key == pg.K_h and self.state == GameState.MENU:
                     self.open_high_scores()
+                if event.key == pg.K_g and self.state == GameState.MENU:
+                    self.garage_index = self.selected_skin
+                    self.set_state(GameState.GARAGE)
+
+                if self.state == GameState.GARAGE:
+                    if event.key == pg.K_LEFT:
+                        self.garage_index = (self.garage_index - 1) % len(CAR_SKINS)
+                    elif event.key == pg.K_RIGHT:
+                        self.garage_index = (self.garage_index + 1) % len(CAR_SKINS)
+                    elif event.key in {pg.K_ESCAPE, pg.K_BACKSPACE}:
+                        self.return_to_menu()
                 if event.key == pg.K_r and (self.state == GameState.GAME_OVER or self.paused):
                     self.reset_game()
                 if self.state == GameState.STAGE_COMPLETE and event.key in {pg.K_RETURN, pg.K_KP_ENTER, pg.K_SPACE}:
@@ -390,19 +477,16 @@ class Game:
 
         left_arrow = layout["left_arrow"]
         right_arrow = layout["right_arrow"]
-        if left_arrow.collidepoint(mouse_pos):
-            self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
-            self._sync_player_skin()
-            self.save_preferences()
-            self.reset_game(change_state=False)
-        if right_arrow.collidepoint(mouse_pos):
-            self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
-            self._sync_player_skin()
-            self.save_preferences()
-            self.reset_game(change_state=False)
+        if left_arrow.collidepoint(mouse_pos) or right_arrow.collidepoint(mouse_pos):
+            self.garage_index = self.selected_skin
+            self.set_state(GameState.GARAGE)
+            return
 
         if self.play_button.is_clicked(mouse_pos):
             self.start_game()
+        if self.garage_button.is_clicked(mouse_pos):
+            self.garage_index = self.selected_skin
+            self.set_state(GameState.GARAGE)
         if self.high_score_button.is_clicked(mouse_pos):
             self.open_high_scores()
         if self.exit_button.is_clicked(mouse_pos):
@@ -559,7 +643,8 @@ class Game:
 
     def update_player_handling(self, current_time, dt):
         speed_val = getattr(self.player, "velocity", const.PLAYER_SPEED_DEFAULT)
-        base_lateral_speed = max(5, int(6 + speed_val / 12))
+        vehicle_stats = self._get_selected_skin_stats()
+        base_lateral_speed = max(5, int(6 + speed_val / 12 + vehicle_stats["handling_bonus"]))
         control_factor = 1.0
 
         if current_time < self.water_slow_end_time:
@@ -829,6 +914,8 @@ class Game:
             self.draw_menu()
         elif self.state == GameState.HIGH_SCORE:
             self.draw_high_score_screen()
+        elif self.state == GameState.GARAGE:
+            self.draw_garage_screen()
         elif self.state == GameState.STAGE_COMPLETE:
             self.draw_stage_complete_screen()
         else:
@@ -937,9 +1024,10 @@ class Game:
         right_arrow = pg.Rect(right_panel.right - 58, right_panel.y + 74, 40, 40)
 
         action_y = content_top + 228
-        start_button = pg.Rect(card_x + 30, action_y, 155, 48)
-        score_button = pg.Rect(card_x + 196, action_y, 168, 48)
-        exit_button = pg.Rect(card_x + 375, action_y, 155, 48)
+        start_button = pg.Rect(card_x + 30, action_y, 122, 48)
+        garage_button = pg.Rect(card_x + 162, action_y, 110, 48)
+        score_button = pg.Rect(card_x + 282, action_y, 148, 48)
+        exit_button = pg.Rect(card_x + 440, action_y, 90, 48)
         footer_rect = pg.Rect(card_x + 30, card_y + 418, MENU_CARD_WIDTH - 60, 74)
 
         return {
@@ -952,6 +1040,7 @@ class Game:
             "left_arrow": left_arrow,
             "right_arrow": right_arrow,
             "start_button": start_button,
+            "garage_button": garage_button,
             "score_button": score_button,
             "exit_button": exit_button,
             "footer_rect": footer_rect,
@@ -960,8 +1049,13 @@ class Game:
     def sync_menu_button_rects(self, layout):
         self.play_button.rect.topleft = layout["start_button"].topleft
         self.play_button.rect.size = layout["start_button"].size
+
+        self.garage_button.rect.topleft = layout["garage_button"].topleft
+        self.garage_button.rect.size = layout["garage_button"].size
+
         self.high_score_button.rect.topleft = layout["score_button"].topleft
         self.high_score_button.rect.size = layout["score_button"].size
+
         self.exit_button.rect.topleft = layout["exit_button"].topleft
         self.exit_button.rect.size = layout["exit_button"].size
 
@@ -1029,11 +1123,12 @@ class Game:
         skin_name = self.tiny_font.render(CAR_SKINS[self.selected_skin]["name"], True, YELLOW)
         self.screen.blit(skin_name, (layout["right_panel"].centerx - skin_name.get_width() // 2, layout["right_panel"].y + 164))
 
-        best_text = self.tiny_font.render(f"Best Score: {self.best_score}", True, YELLOW)
-        self.screen.blit(best_text, (layout["right_panel"].centerx - best_text.get_width() // 2, layout["right_panel"].y + 186))
+        garage_hint = self.tiny_font.render("Change vehicle in Garage", True, GRAY)
+        self.screen.blit(garage_hint, (layout["right_panel"].centerx - garage_hint.get_width() // 2, layout["right_panel"].y + 186))
 
-        self.play_button.draw(self.screen, self.font)
-        self.high_score_button.draw(self.screen, self.small_font)
+        self.play_button.draw(self.screen, self.small_font)
+        self.garage_button.draw(self.screen, self.small_font)
+        self.high_score_button.draw(self.screen, self.tiny_font)
         self.exit_button.draw(self.screen, self.small_font)
 
         footer = pg.Surface(layout["footer_rect"].size, pg.SRCALPHA)
@@ -1053,8 +1148,206 @@ class Game:
             slot_x = layout["footer_rect"].x + index * slot_width + (slot_width - text.get_width()) // 2
             self.screen.blit(text, (slot_x, layout["footer_rect"].y + 16))
 
-        help_text = self.tiny_font.render("Arrow keys steer | P pause | R restart | H high scores", True, GRAY)
+        help_text = self.tiny_font.render("Arrow keys steer | G garage | P pause | R restart | H high scores", True, GRAY)
         self.screen.blit(help_text, (WIDTH // 2 - help_text.get_width() // 2, layout["footer_rect"].y + 42))
+
+    def get_garage_layout(self):
+        card_x = WIDTH // 2 - MENU_CARD_WIDTH // 2
+        card_y = 58
+
+        preview_rect = pg.Rect(WIDTH // 2 - 55, card_y + 120, 110, 120)
+        left_arrow = pg.Rect(card_x + 72, card_y + 162, 46, 42)
+        right_arrow = pg.Rect(card_x + MENU_CARD_WIDTH - 118, card_y + 162, 46, 42)
+
+        buy_button = pg.Rect(WIDTH // 2 - 120, card_y + 382, 240, 45)
+        select_button = pg.Rect(WIDTH // 2 - 120, card_y + 382, 240, 45)
+        back_button = pg.Rect(WIDTH // 2 - 95, card_y + 435, 190, 42)
+
+        return {
+            "card_x": card_x,
+            "card_y": card_y,
+            "preview_rect": preview_rect,
+            "left_arrow": left_arrow,
+            "right_arrow": right_arrow,
+            "buy_button": buy_button,
+            "select_button": select_button,
+            "back_button": back_button,
+        }
+
+    def sync_garage_button_rects(self, layout):
+        self.garage_buy_button.rect.topleft = layout["buy_button"].topleft
+        self.garage_buy_button.rect.size = layout["buy_button"].size
+
+        self.garage_select_button.rect.topleft = layout["select_button"].topleft
+        self.garage_select_button.rect.size = layout["select_button"].size
+
+        self.garage_back_button.rect.topleft = layout["back_button"].topleft
+        self.garage_back_button.rect.size = layout["back_button"].size
+
+    def handle_garage_click(self, mouse_pos):
+        layout = self.get_garage_layout()
+        self.sync_garage_button_rects(layout)
+
+        if layout["left_arrow"].collidepoint(mouse_pos):
+            self.garage_index = (self.garage_index - 1) % len(CAR_SKINS)
+            return
+
+        if layout["right_arrow"].collidepoint(mouse_pos):
+            self.garage_index = (self.garage_index + 1) % len(CAR_SKINS)
+            return
+
+        if self.garage_back_button.is_clicked(mouse_pos):
+            self.return_to_menu()
+            return
+
+        self._refresh_profile_from_save()
+        unlocked = self._get_unlocked_skin_indices()
+        is_unlocked = self.garage_index in unlocked
+        is_selected = self.garage_index == self.selected_skin
+
+        if not is_unlocked and self.garage_buy_button.is_clicked(mouse_pos):
+            success, message = buy_skin(self.garage_index)
+            self._refresh_profile_from_save()
+
+            if success:
+                self.garage_index = self.selected_skin
+                self.reset_game(change_state=False)
+
+            self.register_garage_message(message)
+            return
+
+        if is_unlocked and not is_selected and self.garage_select_button.is_clicked(mouse_pos):
+            success, message = select_skin(self.garage_index)
+            self._refresh_profile_from_save()
+
+            if success:
+                self.reset_game(change_state=False)
+
+            self.register_garage_message(message)
+            return
+
+    def draw_garage_screen(self):
+        self._refresh_profile_from_save()
+
+        card_x, card_y = self.draw_menu_shell(
+            "GARAGE",
+            "Buy, unlock, and select your vehicle.",
+        )
+
+        layout = self.get_garage_layout()
+        self.sync_garage_button_rects(layout)
+
+        skin = CAR_SKINS[self.garage_index]
+        unlocked = self._get_unlocked_skin_indices()
+
+        is_unlocked = self.garage_index in unlocked
+        is_selected = self.garage_index == self.selected_skin
+        price = skin.get("price", 0)
+
+        money_text = self.small_font.render(f"Money: {self.total_money}", True, GOLD)
+        self.screen.blit(
+            money_text,
+            (card_x + 38, card_y + 112),
+        )
+
+        preview_rect = layout["preview_rect"]
+        preview_bg = pg.Surface(preview_rect.size, pg.SRCALPHA)
+        preview_bg.fill((30, 30, 40, 210))
+        pg.draw.rect(
+            preview_bg,
+            (255, 255, 255, 40),
+            (0, 0, preview_rect.width, preview_rect.height),
+            2,
+            border_radius=12,
+        )
+        self.screen.blit(preview_bg, preview_rect.topleft)
+
+        preview_car = Car(
+            preview_rect.centerx - 25,
+            preview_rect.y + 14,
+            skin["color"],
+            True,
+            skin["type"],
+        )
+        preview_car.draw(self.screen)
+
+        mouse_pos = pg.mouse.get_pos()
+        for arrow_rect, symbol in [
+            (layout["left_arrow"], "<"),
+            (layout["right_arrow"], ">"),
+        ]:
+            hover = arrow_rect.collidepoint(mouse_pos)
+            color = GREEN if hover else GRAY
+            pg.draw.rect(self.screen, color, arrow_rect, border_radius=8)
+            pg.draw.rect(self.screen, WHITE, arrow_rect, 2, border_radius=8)
+            arrow_text = self.small_font.render(symbol, True, WHITE)
+            self.screen.blit(arrow_text, arrow_text.get_rect(center=arrow_rect.center))
+
+        name_text = self.small_font.render(skin["name"], True, YELLOW)
+        self.screen.blit(
+            name_text,
+            (WIDTH // 2 - name_text.get_width() // 2, card_y + 248),
+        )
+
+        info_lines = [
+            f"Type: {skin.get('type', 'sedan').title()}",
+            f"Price: {price if price > 0 else 'Free'}",
+            f"Speed Bonus: +{skin.get('speed_bonus', 0)}",
+            f"Handling Bonus: +{skin.get('handling_bonus', 0)}",
+        ]
+
+        start_y = card_y + 278
+        for index, line in enumerate(info_lines):
+            info_text = self.tiny_font.render(line, True, WHITE)
+            self.screen.blit(
+                info_text,
+                (WIDTH // 2 - info_text.get_width() // 2, start_y + index * 19),
+            )
+
+        if is_selected:
+            status = "SELECTED"
+            status_color = GREEN
+        elif is_unlocked:
+            status = "UNLOCKED"
+            status_color = CYAN
+        else:
+            status = "LOCKED"
+            status_color = RED
+
+        status_text = self.small_font.render(f"Status: {status}", True, status_color)
+        self.screen.blit(
+            status_text,
+            (WIDTH // 2 - status_text.get_width() // 2, card_y + 356),
+        )
+
+        if not is_unlocked:
+            self.garage_buy_button.text = "BUY"
+            if self.total_money < price:
+                self.garage_buy_button.text = "NOT ENOUGH MONEY"
+            self.garage_buy_button.draw(self.screen, self.tiny_font)
+        elif not is_selected:
+            self.garage_select_button.text = "SELECT"
+            self.garage_select_button.draw(self.screen, self.small_font)
+
+        self.garage_back_button.text = "BACK"
+        self.garage_back_button.draw(self.screen, self.small_font)
+
+        if self.garage_message and pg.time.get_ticks() < self.garage_message_until:
+            message_text = self.tiny_font.render(self.garage_message, True, YELLOW)
+            self.screen.blit(
+                message_text,
+                (WIDTH // 2 - message_text.get_width() // 2, card_y + 482),
+            )
+
+        help_text = self.tiny_font.render(
+            "Use arrows or click < > to browse vehicles.",
+            True,
+            GRAY,
+        )
+        self.screen.blit(
+            help_text,
+            (WIDTH // 2 - help_text.get_width() // 2, card_y + 505),
+        )
 
     def draw_high_score_screen(self):
         self.save_data = load_save_data()
@@ -1101,7 +1394,7 @@ class Game:
         pulse = int(5 * abs(math.sin(self.score_animation)))
 
         hud_width = 236
-        hud_height = 394
+        hud_height = 448
         hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
         hud_bg.fill((10, 14, 22, 208))
         pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
@@ -1127,15 +1420,12 @@ class Game:
         distance_text = self.small_font.render(f"Distance: {int(self.distance)} m", True, WHITE)
         self.screen.blit(distance_text, (24, 104))
 
-        # Show distance-to-finish for the current stage (place above Track Watch)
+        # Show distance-to-finish for the current stage.
         cfg = getattr(self, "current_stage_config", None)
         if cfg:
             remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
             finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
-            # Track Watch section begins around y=262; place the finish text just above it
-            track_watch_top = 262
-            finish_y = track_watch_top - 28
-            self.screen.blit(finish_text, (24, finish_y))
+            self.screen.blit(finish_text, (24, 268))
 
         lives_label = self.small_font.render("Lives:", True, WHITE)
         self.screen.blit(lives_label, (24, 132))
@@ -1159,6 +1449,12 @@ class Game:
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (24, 200))
 
+        vehicle_name = CAR_SKINS[self.selected_skin]["name"]
+        if len(vehicle_name) > 16:
+            vehicle_name = vehicle_name[:15] + "."
+        vehicle_text = self.tiny_font.render(f"Vehicle: {vehicle_name}", True, CYAN)
+        self.screen.blit(vehicle_text, (24, 220))
+
         display_money = self.total_money
 
         if self.state != GameState.GAME_OVER:
@@ -1171,14 +1467,14 @@ class Game:
             True,
             GOLD,
         )
-        self.screen.blit(money_text, (24, 220))
+        self.screen.blit(money_text, (24, 246))
 
         popup_age = pg.time.get_ticks() - self.money_popup_start_time
         popup_duration = 950
 
         if self.money_popup_amount > 0 and popup_age < popup_duration:
             progress = popup_age / popup_duration
-            popup_y = 220 - int(progress * 20)
+            popup_y = 246 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
             popup_text = self.small_font.render(
@@ -1228,10 +1524,10 @@ class Game:
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (24, 240))
+            self.screen.blit(multiplier_text, (24, 266))
 
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, 262))
+        self.screen.blit(section_title, (24, 296))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -1241,7 +1537,7 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = 284 + index * 22
+            card_y = 318 + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
             pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
@@ -1254,7 +1550,7 @@ class Game:
 
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 376))
+        self.screen.blit(status_title, (24, 410))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -1262,14 +1558,14 @@ class Game:
                 pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
-                self.screen.blit(badge, (24, 398 + index * 16))
+                self.screen.blit(badge, (24, 432 + index * 16))
         else:
             badge = pg.Surface((188, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
             pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
-            self.screen.blit(badge, (24, 398))
+            self.screen.blit(badge, (24, 432))
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
