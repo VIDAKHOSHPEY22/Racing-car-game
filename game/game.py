@@ -323,7 +323,12 @@ class Game:
         self.garage_message_until = pg.time.get_ticks() + duration
 
     def reset_game(self, change_state=True):
+<<<<<<< HEAD
 >>>>>>> e19a521 (Add garage vehicle progression system)
+=======
+        previous_state = self.state
+        was_paused = self.paused
+>>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         self._sync_player_skin()
 
     def _cycle_unlocked_skin(self, direction):
@@ -537,6 +542,20 @@ class Game:
             current_time=pg.time.get_ticks(),
         )
         self.update_player_bounds()
+
+        
+        try:
+            if self.current_music and not self.music_muted:
+                if previous_state == GameState.GAME_OVER:
+                    pg.mixer.music.stop()
+                    pg.mixer.music.play(-1)
+                elif was_paused:
+                    if not pg.mixer.music.get_busy():
+                        pg.mixer.music.play(-1)
+                    else:
+                        pg.mixer.music.unpause()
+        except Exception:
+            pass
 
         if change_state:
             self.set_state(GameState.PLAYING)
@@ -812,6 +831,7 @@ class Game:
     )    
 
     def return_to_menu(self):
+        previous_state = self.state
         self.save_preferences()
         self.save_data = load_save_data()
         self.best_score = self.save_data["high_score"]
@@ -821,6 +841,14 @@ class Game:
         self.total_score = self.save_data["total_score"]
         self.reset_game(change_state=False)
         self.set_state(GameState.MENU)
+
+       
+        try:
+            if previous_state == GameState.GAME_OVER and self.current_music and not self.music_muted:
+                pg.mixer.music.stop()
+                pg.mixer.music.play(-1)
+        except Exception:
+            pass
 
     def handle_events(self):
         for event in pg.event.get():
@@ -2007,10 +2035,10 @@ class Game:
 
         # Show distance-to-finish for the current stage.
         cfg = getattr(self, "current_stage_config", None)
+        finish_line = None
         if cfg:
             remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
-            finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
-            self.screen.blit(finish_text, (24, 268))
+            finish_line = f"To Finish: {remaining} m"
 
         lives_label = self.small_font.render("Lives:", True, WHITE)
         self.screen.blit(lives_label, (24, 132))
@@ -2036,6 +2064,15 @@ class Game:
         except Exception:
             road_type, safe_speed, high_risk_speed = None, None, None
 
+<<<<<<< HEAD
+=======
+        weather_lines = []
+        try:
+            road_type, safe_speed, high_risk_speed = self.weather.get_active_speed_limits(self.selected_difficulty)
+        except Exception:
+            road_type, safe_speed, high_risk_speed = None, None, None
+
+>>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         if road_type and safe_speed is not None and high_risk_speed is not None:
             weather_lines.append(f"{road_type} Safe: {safe_speed:.0f}  Risk: {high_risk_speed:.0f} km/h")
 
@@ -2048,6 +2085,7 @@ class Game:
             fog_trigger = self.weather.get_fog_speed_trigger(self.selected_difficulty)
             weather_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
 
+<<<<<<< HEAD
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         visible_status_count = max(1, min(3, len(active_statuses)))
         legend_card_width = 188
@@ -2092,6 +2130,12 @@ class Game:
             info = self.tiny_font.render(line, True, CYAN)
             self.screen.blit(info, (24, 176 + idx * 16))
         
+=======
+        for idx, line in enumerate(weather_lines[:2]):
+            info = self.tiny_font.render(line, True, CYAN)
+            self.screen.blit(info, (24, 176 + idx * 16))
+
+>>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (24, 200))
 
@@ -2173,8 +2217,14 @@ class Game:
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
             self.screen.blit(multiplier_text, (24, 266))
 
+        if finish_line:
+            finish_y = 284 if self.score_multiplier > 1.0 else 268
+            finish_text = self.tiny_font.render(finish_line, True, WHITE)
+            self.screen.blit(finish_text, (24, finish_y))
+
+        section_title_y = 304 if (finish_line and self.score_multiplier > 1.0) else 296
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, 296))
+        self.screen.blit(section_title, (24, section_title_y))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -2184,7 +2234,7 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = 318 + index * 22
+            card_y = (326 if (finish_line and self.score_multiplier > 1.0) else 318) + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
             pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
@@ -2197,7 +2247,7 @@ class Game:
 
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 410))
+        self.screen.blit(status_title, (24, 418))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -2205,6 +2255,7 @@ class Game:
                 pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
+<<<<<<< HEAD
 <<<<<<< HEAD
                 self.screen.blit(badge, (24, 398 + index * 16))
             else:
@@ -2273,14 +2324,21 @@ class Game:
             self.sound_button.draw(self.screen, self.tiny_font)
 =======
                 self.screen.blit(badge, (24, 432 + index * 16))
+=======
+                self.screen.blit(badge, (24, 440 + index * 16))
+>>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         else:
             badge = pg.Surface((188, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
             pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
+<<<<<<< HEAD
             self.screen.blit(badge, (24, 432))
 >>>>>>> e19a521 (Add garage vehicle progression system)
+=======
+            self.screen.blit(badge, (24, 440))
+>>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -2307,6 +2365,14 @@ class Game:
                     y += y_offset
                     multiplier_str = f"x{self.score_multiplier:.1f}!"
                     color = YELLOW if self.score_multiplier >= 2.0 else GREEN
+
+                  
+                    text_probe = self.small_font.render(multiplier_str, True, color)
+                    half_w = text_probe.get_width() // 2
+                    min_x = 10 + 236 + 18 + half_w
+                    max_x = WIDTH - 10 - half_w
+                    x = max(min_x, min(int(x), max_x))
+                    y = max(10, min(int(y), HEIGHT - 10))
 
                     for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
                         glow_text = self.small_font.render(

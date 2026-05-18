@@ -293,7 +293,7 @@ class WeatherManager:
         Stage 6  -> Rain
         Stage 7  -> Fog -> Rain + Fog
         Stage 8  -> Night + Rain
-        Stage 9  -> Night -> Night + Snow
+        Stage 9  -> Night -> Night + Fog + Snow
         Stage 10+ -> Night + Rain + Fog
         """
 
@@ -346,14 +346,17 @@ class WeatherManager:
             return ["snow"]
 
         if stage == 5:
-            start = {
-                "Easy": 0.35,
-                "Medium": 0.30,
-                "Hard": 0.20,
-            }[difficulty]
+            windows = {
+                "Easy": (0.55, 0.85),
+                "Medium": (0.45, 0.90),
+                "Hard": (0.35, 1.01),
+            }
+            start, end = windows[difficulty]
             if progress_ratio < start:
                 return ["clear"]
-            return ["night"]
+            if progress_ratio < end:
+                return ["night"]
+            return ["clear"]
 
         if stage == 6:
             start_clear = {
@@ -386,7 +389,7 @@ class WeatherManager:
             }[difficulty]
             if progress_ratio < switch_point:
                 return ["night"]
-            return ["night", "snow"]
+            return ["night", "fog", "snow"]
 
         intro_clear = {
             "Easy": 0.12,
@@ -396,93 +399,102 @@ class WeatherManager:
         if progress_ratio < intro_clear:
             return ["clear"]
 
-        fog_allowed = (stage >= 14) and (difficulty != "Easy")
+       
+        stage_ramp = max(0.0, min(1.0, (stage - 10) / 14.0))
 
-        breather_enabled = (stage % 2 == 0) and (difficulty != "Hard" or stage < 18)
+        breather_enabled = (difficulty != "Hard") and (stage % 3 == 0)
         if breather_enabled:
-            if difficulty == "Easy":
-                breather = (0.46, 0.54)
-            elif difficulty == "Medium":
-                breather = (0.48, 0.54)
-            else:
-                breather = (0.49, 0.52)
-            if breather[0] <= progress_ratio <= breather[1]:
+            width = 0.10 - 0.04 * stage_ramp
+            center = 0.50
+            start = center - width / 2
+            end = center + width / 2
+            if start <= progress_ratio <= end:
                 return ["clear"]
 
-        triple_stage_ok = fog_allowed and (stage >= (15 if difficulty != "Easy" else 18))
-        triple_window = (0.88, 0.94)
+        if stage <= 12:
+            tier = 0
+        elif stage <= 16:
+            tier = 1
+        else:
+            tier = 2
 
-        pattern = stage % 7
+        pattern = stage % 6
 
-        if (
-            triple_stage_ok
-            and pattern in (0, 6)
-            and triple_window[0] <= progress_ratio <= triple_window[1]
-        ):
-            return ["night", "rain", "fog"]
+        if tier >= 2 and difficulty == "Hard" and stage >= 20:
+            if (stage % 4 == 0) and (0.90 <= progress_ratio <= 0.96):
+                return ["night", "rain", "fog"]
 
         if pattern == 0:
-            if progress_ratio < 0.45:
+           
+            if progress_ratio < 0.28:
                 return ["clear"]
-            if progress_ratio < 0.75:
+            if tier == 0:
                 return ["rain"]
-            if fog_allowed and progress_ratio > 0.85:
-                return ["night", "rain", "fog"]
-            return ["night", "rain"]
-
-        if pattern == 1:
-            if progress_ratio < 0.60:
-                return ["night"]
-            return ["night", "rain"]
-
-        if pattern == 2:
-            if progress_ratio < 0.40:
-                return ["rain"]
-            if progress_ratio < 0.55 and difficulty != "Hard":
-                return ["clear"]
-            if progress_ratio < 0.78:
-                return ["rain"]
-            return ["night", "rain"] if difficulty == "Hard" else ["rain"]
-
-        if pattern == 3:
-            if progress_ratio < 0.35:
-                return ["night"]
-            return ["night", "snow"] if difficulty != "Easy" else ["snow"]
-
-        if pattern == 4:
-            if progress_ratio < 0.55:
-                return ["clear"]
-            return ["night"]
-
-        if pattern == 5:
-            if progress_ratio < 0.50:
-                return ["rain"]
-            return ["night"]
-
-        if not fog_allowed:
             if progress_ratio < 0.70:
                 return ["rain"]
-            return ["night", "rain"] if difficulty == "Hard" else ["rain"]
+            return ["rain", "fog"] if tier >= 1 else ["rain"]
 
-        if progress_ratio < 0.60:
-            return ["fog"]
-        if progress_ratio < 0.82:
-            return ["fog", "rain"]
-        return ["night", "fog"]
+        if pattern == 1:
+            
+            if progress_ratio < 0.26:
+                return ["clear"]
+            if tier == 0:
+                return ["snow"]
+            if progress_ratio < 0.72:
+                return ["snow"]
+            return ["snow", "fog"] if tier >= 1 else ["snow"]
+
+        if pattern == 2:
+            if progress_ratio < 0.30:
+                return ["clear"]
+            if tier == 0:
+                return ["fog"]
+            if progress_ratio < 0.66:
+                return ["fog"]
+            return ["fog", "rain"] if (difficulty != "Easy") else ["fog"]
+
+        if pattern == 3:
+            if progress_ratio < 0.22:
+                return ["clear"]
+            if progress_ratio < 0.56:
+                return ["rain"]
+            return ["snow"]
+
+        if pattern == 4:
+            if progress_ratio < 0.34:
+                return ["rain"] if tier >= 1 else ["clear"]
+            if progress_ratio < 0.82:
+                return ["rain"] if tier >= 1 else ["rain"]
+            return ["night", "rain"]
+
+        if progress_ratio < 0.32:
+            return ["snow"] if tier >= 1 else ["clear"]
+        if progress_ratio < 0.84:
+            return ["snow"]
+        return ["night", "snow"] if difficulty != "Easy" else ["snow"]
 
     def _update_weather_strength_for_stage(self, stage, progress_ratio, selected_difficulty):
-       
         difficulty = (
             selected_difficulty
             if selected_difficulty in const.DIFFICULTY_SETTINGS
             else const.DEFAULT_DIFFICULTY
         )
 
-        self.weather_strength["rain"] = 1.0
-        self.weather_strength["snow"] = 1.0
-        self.weather_strength["fog"] = 1.0
-        self.weather_strength["night"] = 1.0
 
+        stage_ramp = max(0.0, min(1.0, (float(stage) - 4.0) / 18.0))
+        diff_mult = {
+            "Easy": 0.90,
+            "Medium": 1.00,
+            "Hard": 1.10,
+        }.get(difficulty, 1.0)
+
+        self.weather_strength["rain"] = 1.0 + 0.22 * stage_ramp * diff_mult
+        self.weather_strength["snow"] = 1.0 + 0.32 * stage_ramp * diff_mult
+        self.weather_strength["fog"] = 1.0 + 0.18 * stage_ramp * diff_mult
+      
+        self.weather_strength["night"] = 1.0 + 0.10 * stage_ramp * diff_mult
+
+        
         if stage != 6:
             return
 
@@ -509,9 +521,9 @@ class WeatherManager:
             return
 
         if heavy_start <= progress_ratio <= heavy_end:
-            self.weather_strength["rain"] = 1.55
+            self.weather_strength["rain"] = max(self.weather_strength["rain"], 1.55)
         else:
-            self.weather_strength["rain"] = 1.10
+            self.weather_strength["rain"] = max(self.weather_strength["rain"], 1.10)
 
     def _get_weather_strength(self, weather_type):
         try:
@@ -531,6 +543,14 @@ class WeatherManager:
             const.DIFFICULTY_SETTINGS[const.DEFAULT_DIFFICULTY],
         )
         return float(settings.get("max_speed", const.MAX_SPEED))
+
+    def get_fog_speed_trigger(self, selected_difficulty):
+        
+        max_speed = self._get_max_speed(selected_difficulty)
+        return 0.65 * max_speed
+
+    def get_active_speed_limits(self, selected_difficulty):
+        return self._get_safe_speed_info(selected_difficulty)
 
     def _get_safe_speed_info(self, selected_difficulty):
         if "snow" in self.active_weather:
@@ -1179,19 +1199,33 @@ class WeatherManager:
 
         road_type, safe_speed, high_risk_speed = self._get_safe_speed_info(selected_difficulty)
 
-        lines = [f"Weather: {weather_label}"]
+        info_lines = []
 
-        if road_type and safe_speed is not None and high_risk_speed is not None:
-            lines.append(f"Safe Speed: {safe_speed:.0f} km/h")
-            lines.append(f"High Risk: {high_risk_speed:.0f} km/h")
-        elif "fog" in self.active_weather:
-            lines.append("Low Visibility")
-            lines.append("Headlights Active")
-        elif "night" in self.active_weather:
-            lines.append("Headlights Active")
-            lines.append("Limited Vision")
-        else:
-            lines.append("Road Normal")
+        has_fog = "fog" in self.active_weather
+        has_night = "night" in self.active_weather
+        has_speed_limits = road_type and safe_speed is not None and high_risk_speed is not None
+
+        if has_speed_limits:
+            info_lines.append(f"Safe Speed: {safe_speed:.0f} km/h")
+            info_lines.append(f"High Risk: {high_risk_speed:.0f} km/h")
+
+        if has_fog:
+            fog_trigger = self.get_fog_speed_trigger(selected_difficulty)
+            info_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
+            if not has_speed_limits:
+                info_lines.append("Low Visibility")
+                if has_night:
+                    info_lines.append("Headlights Active")
+
+        if (not has_fog) and has_night:
+            info_lines.append("Headlights Active")
+            info_lines.append("Limited Vision")
+
+        if not info_lines:
+            info_lines.append("Road Normal")
+
+        info_lines = info_lines[:3]
+        lines = [f"Weather: {weather_label}"] + info_lines
 
         title_color = (130, 220, 255)
         normal_color = const.WHITE
