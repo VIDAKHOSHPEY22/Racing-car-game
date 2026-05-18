@@ -118,7 +118,7 @@ from .storage import (
     save_player_preferences,
 )
 from . import constants as const
-
+from .weather import WeatherManager
 
 class Game:
     def __init__(self):
@@ -177,6 +177,7 @@ class Game:
         self.status_message_until = 0
         self.finish_sign = None
         self.completed_stage = None
+        self.weather = WeatherManager()
 
         # Level transition / map animation state
         self.level_transition_start = None
@@ -308,6 +309,8 @@ class Game:
         self.garage_message_until = pg.time.get_ticks() + duration
 
     def reset_game(self, change_state=True):
+        previous_state = self.state
+        was_paused = self.paused
         self._sync_player_skin()
         self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
         self.obstacles = []
@@ -365,7 +368,28 @@ class Game:
         self.consecutive_actions = 0
         self.next_stage_score = 3
         self.clear_hazard_effects()
+        self.weather.reset()
+        self.weather.update_for_stage(
+            stage=self.stage,
+            progress_ratio=0.0,
+            selected_difficulty=self.selected_difficulty,
+            current_time=pg.time.get_ticks(),
+        )
         self.update_player_bounds()
+
+        
+        try:
+            if self.current_music and not self.music_muted:
+                if previous_state == GameState.GAME_OVER:
+                    pg.mixer.music.stop()
+                    pg.mixer.music.play(-1)
+                elif was_paused:
+                    if not pg.mixer.music.get_busy():
+                        pg.mixer.music.play(-1)
+                    else:
+                        pg.mixer.music.unpause()
+        except Exception:
+            pass
 
         if change_state:
             self.set_state(GameState.PLAYING)
@@ -428,6 +452,7 @@ class Game:
     )    
 
     def return_to_menu(self):
+        previous_state = self.state
         self.save_preferences()
         self.save_data = load_save_data()
         self.best_score = self.save_data["high_score"]
@@ -437,6 +462,14 @@ class Game:
         self.total_score = self.save_data["total_score"]
         self.reset_game(change_state=False)
         self.set_state(GameState.MENU)
+
+       
+        try:
+            if previous_state == GameState.GAME_OVER and self.current_music and not self.music_muted:
+                pg.mixer.music.stop()
+                pg.mixer.music.play(-1)
+        except Exception:
+            pass
 
     def handle_events(self):
         for event in pg.event.get():
@@ -826,6 +859,12 @@ class Game:
         self.clear_hazard_effects()
         self.stop_nitro_boost(pg.time.get_ticks(), start_cooldown=False)
         self.load_stage_config(self.stage)
+        self.weather.update_for_stage(
+            stage=self.stage,
+            progress_ratio=0.0,
+            selected_difficulty=self.selected_difficulty,
+            current_time=pg.time.get_ticks(),
+        )
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
         self.last_nitro_time = pg.time.get_ticks()
@@ -925,6 +964,31 @@ class Game:
             self.stage_progress_distance += vel * dt
         except Exception:
             pass
+        
+        try:
+            target_distance = float(
+                getattr(self, "current_stage_config", {}).get("distance_target", 1)
+            )
+            stage_progress_ratio = self.stage_progress_distance / max(1.0, target_distance)
+            stage_progress_ratio = max(0.0, min(1.0, stage_progress_ratio))
+        except Exception:
+            stage_progress_ratio = 0.0
+
+        try:
+            hazard_slip_active = current_time < self.skid_end_time
+            self.weather.update(
+                current_time=current_time,
+                dt=dt,
+                player=self.player,
+                keys=keys,
+                stage=self.stage,
+                stage_progress_ratio=stage_progress_ratio,
+                selected_difficulty=self.selected_difficulty,
+                hazard_slip_active=hazard_slip_active,
+            )
+        except Exception:
+            pass
+        
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
@@ -1085,8 +1149,37 @@ class Game:
             for pickup in self.nitro_pickups:
                 pickup.draw(self.screen)
 
+            self.weather.draw_environment(
+                self.screen,
+                self.player,
+                self.selected_difficulty,
+                player_visual_y=target_visual_y,
+            )
+
             self.draw_scoreboard()
             self.draw_status_banner()
+            self.pause_button.draw(self.screen, self.tiny_font)
+            self.sound_button.draw(self.screen, self.tiny_font)
+            # Speed HUD: show player's forward velocity in top-right
+            try:
+                vel = self.player.get_velocity()
+            except Exception:
+                vel = None
+            if vel is not None:
+                speed_text = self.small_font.render(f"Speed: {vel:.1f} km/h", True, WHITE)
+                speed_rect = speed_text.get_rect(topright=(WIDTH - 10, 10))
+                # Draw background box for readability
+                bg = pg.Surface((speed_rect.width + 8, speed_rect.height + 6), pg.SRCALPHA)
+                bg.fill((0, 0, 0, 140))
+                self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
+                self.screen.blit(speed_text, speed_rect)
+                
+            self.weather.draw_hud(
+                self.screen,
+                self.small_font,
+                self.tiny_font,
+                self.selected_difficulty,
+            )    
             self.draw_top_right_hud()
             self.draw_multiplier_feedback()
             self.draw_damage_feedback()
@@ -1541,10 +1634,10 @@ class Game:
 
         # Show distance-to-finish for the current stage.
         cfg = getattr(self, "current_stage_config", None)
+        finish_line = None
         if cfg:
             remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
-            finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
-            self.screen.blit(finish_text, (24, 268))
+            finish_line = f"To Finish: {remaining} m"
 
         lives_label = self.small_font.render("Lives:", True, WHITE)
         self.screen.blit(lives_label, (24, 132))
@@ -1564,6 +1657,28 @@ class Game:
 
             pg.draw.polygon(self.screen, RED, heart_points)
             pg.draw.polygon(self.screen, WHITE, heart_points, 1)
+
+        weather_lines = []
+        try:
+            road_type, safe_speed, high_risk_speed = self.weather.get_active_speed_limits(self.selected_difficulty)
+        except Exception:
+            road_type, safe_speed, high_risk_speed = None, None, None
+
+        if road_type and safe_speed is not None and high_risk_speed is not None:
+            weather_lines.append(f"{road_type} Safe: {safe_speed:.0f}  Risk: {high_risk_speed:.0f} km/h")
+
+        try:
+            fog_intensity = float(self.weather.weather_intensity.get("fog", 0.0))
+        except Exception:
+            fog_intensity = 0.0
+
+        if ("fog" in getattr(self.weather, "active_weather", [])) or (fog_intensity > 0.05):
+            fog_trigger = self.weather.get_fog_speed_trigger(self.selected_difficulty)
+            weather_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
+
+        for idx, line in enumerate(weather_lines[:2]):
+            info = self.tiny_font.render(line, True, CYAN)
+            self.screen.blit(info, (24, 176 + idx * 16))
 
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (24, 200))
@@ -1645,8 +1760,14 @@ class Game:
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
             self.screen.blit(multiplier_text, (24, 266))
 
+        if finish_line:
+            finish_y = 284 if self.score_multiplier > 1.0 else 268
+            finish_text = self.tiny_font.render(finish_line, True, WHITE)
+            self.screen.blit(finish_text, (24, finish_y))
+
+        section_title_y = 304 if (finish_line and self.score_multiplier > 1.0) else 296
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, 296))
+        self.screen.blit(section_title, (24, section_title_y))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -1656,7 +1777,7 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = 318 + index * 22
+            card_y = (326 if (finish_line and self.score_multiplier > 1.0) else 318) + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
             pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
@@ -1669,7 +1790,7 @@ class Game:
 
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 410))
+        self.screen.blit(status_title, (24, 418))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -1677,14 +1798,14 @@ class Game:
                 pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
-                self.screen.blit(badge, (24, 432 + index * 16))
+                self.screen.blit(badge, (24, 440 + index * 16))
         else:
             badge = pg.Surface((188, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
             pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
-            self.screen.blit(badge, (24, 432))
+            self.screen.blit(badge, (24, 440))
 
     def draw_top_right_hud(self):
         panel_width = 226
@@ -1764,6 +1885,14 @@ class Game:
                     y += y_offset
                     multiplier_str = f"x{self.score_multiplier:.1f}!"
                     color = YELLOW if self.score_multiplier >= 2.0 else GREEN
+
+                  
+                    text_probe = self.small_font.render(multiplier_str, True, color)
+                    half_w = text_probe.get_width() // 2
+                    min_x = 10 + 236 + 18 + half_w
+                    max_x = WIDTH - 10 - half_w
+                    x = max(min_x, min(int(x), max_x))
+                    y = max(10, min(int(y), HEIGHT - 10))
 
                     for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
                         glow_text = self.small_font.render(
