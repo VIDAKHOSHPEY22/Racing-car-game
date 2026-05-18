@@ -13,6 +13,7 @@ from .constants import (
     FRICTION,
     BRAKE_DECEL,
     BASE_SPEED,
+    BLACK,
     DAMAGE_COOLDOWN,
     CAR_SKINS,
     CYAN,
@@ -100,35 +101,56 @@ class FinishLine:
         except Exception:
             pass
 
-        pole_color = (88, 88, 94)
-        accent_color = (255, 245, 225)
+        center_x = self.x + self.width // 2
+        banner_y = int(self.y + 12)
+        line_y = int(self.y + 54)
+
+        shadow = pg.Surface((self.width + 42, self.height + 26), pg.SRCALPHA)
+        pg.draw.ellipse(shadow, (0, 0, 0, 75), (12, self.height - 8, self.width + 18, 16))
+        screen.blit(shadow, (self.x - 22, self.y - 4))
+
+        pole_color = (86, 88, 98)
+        pole_highlight = (150, 152, 162)
         flag_color = RED if self.stage_id % 2 == 0 else YELLOW
+        for pole_x, flag_dir in [(self.x + 12, 1), (self.x + self.width - 20, -1)]:
+            pg.draw.rect(screen, pole_color, (pole_x, self.y + 6, 8, self.height + 6), border_radius=4)
+            pg.draw.line(screen, pole_highlight, (pole_x + 2, self.y + 8), (pole_x + 2, self.y + self.height), 1)
+            flag_points = [
+                (pole_x + 4, self.y + 8),
+                (pole_x + 4 + flag_dir * 34, self.y + 18),
+                (pole_x + 4, self.y + 30),
+            ]
+            pg.draw.polygon(screen, flag_color, flag_points)
+            pg.draw.polygon(screen, WHITE, flag_points, 1)
 
-        shadow = pg.Surface((self.width + 24, self.height + 18), pg.SRCALPHA)
-        pg.draw.ellipse(shadow, (0, 0, 0, 55), (6, self.height - 6, self.width, 12))
-        screen.blit(shadow, (self.x - 12, self.y - 2))
+        banner_rect = pg.Rect(self.x + 20, banner_y, self.width - 40, 34)
+        pg.draw.rect(screen, (12, 14, 22), banner_rect, border_radius=12)
+        pg.draw.rect(screen, GOLD, banner_rect, 2, border_radius=12)
 
-        for pole_x in (self.x + 14, self.x + self.width - 20):
-            pg.draw.rect(screen, pole_color, (pole_x, self.y + 8, 8, self.height - 4), border_radius=3)
-            pg.draw.circle(screen, (135, 135, 142), (pole_x + 4, self.y + self.height - 4), 4)
+        title = pg.font.Font(None, 34).render("FINISH", True, WHITE)
+        title_shadow = pg.font.Font(None, 34).render("FINISH", True, (0, 0, 0))
+        screen.blit(title_shadow, title_shadow.get_rect(center=(banner_rect.centerx + 2, banner_rect.centery + 2)))
+        screen.blit(title, title.get_rect(center=banner_rect.center))
 
-        banner_rect = pg.Rect(self.x + 12, self.y + 10, self.width - 24, 26)
-        pg.draw.rect(screen, (22, 22, 26), banner_rect, border_radius=10)
-        pg.draw.rect(screen, accent_color, banner_rect, 2, border_radius=10)
+        strip_rect = pg.Rect(self.x + 6, line_y, self.width - 12, 28)
+        pg.draw.rect(screen, (18, 18, 22), strip_rect, border_radius=6)
+        square = 14
+        cols = max(1, strip_rect.width // square)
+        rows = 2
+        for row in range(rows):
+            for col in range(cols):
+                color = WHITE if (row + col) % 2 == 0 else BLACK
+                cell = pg.Rect(strip_rect.x + col * square, strip_rect.y + row * square, square, square)
+                pg.draw.rect(screen, color, cell)
+        pg.draw.rect(screen, GOLD, strip_rect, 2, border_radius=6)
 
-        for idx in range(8):
-            stripe_x = banner_rect.x + 6 + idx * 20
-            stripe_rect = pg.Rect(stripe_x, banner_rect.y + 4, 12, banner_rect.height - 8)
-            pg.draw.rect(screen, flag_color, stripe_rect, border_radius=3)
-            pg.draw.line(screen, WHITE, stripe_rect.topleft, stripe_rect.bottomright, 1)
-
-        text = pg.font.Font(None, 34).render("FINISH", True, WHITE)
-        screen.blit(text, text.get_rect(center=banner_rect.center))
-
-        tag = pg.font.Font(None, 24).render(f"Level {self.stage_id}", True, accent_color)
-        screen.blit(tag, tag.get_rect(center=(self.x + self.width // 2, self.y + 58)))
+        tag_bg = pg.Rect(center_x - 46, self.y + 84, 92, 24)
+        pg.draw.rect(screen, (12, 14, 22), tag_bg, border_radius=8)
+        pg.draw.rect(screen, (255, 255, 255, 70), tag_bg, 1, border_radius=8)
+        tag = pg.font.Font(None, 23).render(f"Level {self.stage_id}", True, GOLD)
+        screen.blit(tag, tag.get_rect(center=tag_bg.center))
 from .hazard import Hazard
-from .music_utils import create_coin_sound, load_music
+from .music_utils import create_coin_sound, create_damage_sound, load_music
 from .road import Road
 from .storage import (
     buy_skin,
@@ -253,13 +275,22 @@ class Game:
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
         self.pause_menu_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 120, 160, 45, "MAIN MENU")
+<<<<<<< HEAD
+=======
+        self.game_over_continue_button = Button(WIDTH // 2 - 120, HEIGHT // 2 - 20, 240, 45, "CONTINUE")
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "RESTART")
         self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "MAIN MENU")
         self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 160, 200, 45, "QUIT")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
+        self.last_stage_score_bonus = 0
+        self.last_stage_money_bonus = 0
+        self.last_stage_bonus_total = 0
+
         self.current_music = load_music()
         self.coin_sound = create_coin_sound()
+        self.damage_sound = create_damage_sound()
         if self.current_music:
             pg.mixer.music.play(-1)
 
@@ -343,6 +374,7 @@ class Game:
         self.garage_message = message
         self.garage_message_until = pg.time.get_ticks() + duration
 
+<<<<<<< HEAD
     def reset_game(self, change_state=True):
 <<<<<<< HEAD
 >>>>>>> e19a521 (Add garage vehicle progression system)
@@ -369,6 +401,8 @@ class Game:
         self.garage_message = message
         self.garage_message_until = pg.time.get_ticks() + duration
 
+=======
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def get_checkpoint_stage(self):
         try:
             checkpoint_stage = int(self.stage)
@@ -382,6 +416,7 @@ class Game:
     def calculate_stage_rewards(self, stage_id):
         stage_id = max(1, int(stage_id))
         score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
+<<<<<<< HEAD
         money_bonus = ECONOMY_STAGE_REWARD_MONEY
         return int(score_bonus), int(money_bonus)
 
@@ -468,6 +503,9 @@ class Game:
         stage_id = max(1, int(stage_id))
         score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
         money_bonus = ECONOMY_STAGE_REWARD_MONEY
+=======
+        money_bonus = const.STAGE_CLEAR_MONEY_BONUS + stage_id * const.STAGE_LEVEL_MONEY_MULTIPLIER
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         return int(score_bonus), int(money_bonus)
 
     def reset_game(self, change_state=True, start_stage=None):
@@ -480,6 +518,7 @@ class Game:
         self.obstacles = []
         self.coins = []
         self.nitro_pickups = []
+<<<<<<< HEAD
 <<<<<<< HEAD
 
         # Determine starting stage:
@@ -501,23 +540,35 @@ class Game:
             else:
                 starting_stage = DEFAULT_STAGE
 
+=======
+
+        try:
+            starting_stage = int(start_stage) if start_stage is not None else DEFAULT_STAGE
+        except (TypeError, ValueError):
+            starting_stage = DEFAULT_STAGE
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         starting_stage = max(DEFAULT_STAGE, starting_stage)
 
         self.stage = starting_stage
         self.level = starting_stage
+<<<<<<< HEAD
 
         self._apply_level_one_wallet_floor(previous_state)
 =======
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
 >>>>>>> bcd0777 (feat: add nitro boost gameplay system)
+=======
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.score = 0
         self.current_level_money = 0
         self.is_new_high_score = False
 
         self.money_popup_amount = 0
         self.money_popup_start_time = 0
-
+        self.last_stage_score_bonus = 0
+        self.last_stage_money_bonus = 0
+        self.last_stage_bonus_total = 0
 
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
@@ -546,8 +597,11 @@ class Game:
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
         self.load_stage_config(self.stage)
+<<<<<<< HEAD
         self.coin_frequency = self.get_coin_spawn_interval()
         self.max_active_coins = self.get_max_active_coins()
+=======
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         # reset stage progress tracking (do not reset `distance` which is runtime total)
         self.stage_progress_distance = 0.0
         self._reset_stage_economy_counters()
@@ -821,15 +875,26 @@ class Game:
         self.reset_game(change_state=True)
         if self.current_music and not self.music_muted:
             pg.mixer.music.play(-1)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def continue_from_checkpoint(self):
         self.save_data = load_save_data()
         checkpoint_stage = self.get_checkpoint_stage()
         self.reset_game(change_state=True, start_stage=checkpoint_stage)
+<<<<<<< HEAD
         # Use a neutral message instead of showing the level number
         self.register_status_message("Play again", pg.time.get_ticks(), duration=1600)
         if self.current_music and not self.music_muted:
             pg.mixer.music.play(-1)
+=======
+        self.register_status_message(f"Continuing from Level {checkpoint_stage}", pg.time.get_ticks(), duration=1600)
+        if self.current_music and not self.music_muted:
+            pg.mixer.music.play(-1)
+
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def open_high_scores(self):
         self.best_score = read_high_score()
         self.set_state(GameState.HIGH_SCORE)
@@ -985,6 +1050,9 @@ class Game:
     def handle_game_over_click(self, mouse_pos):
         self.sync_game_over_button_rects()
 
+        if self.has_checkpoint() and self.game_over_continue_button.is_clicked(mouse_pos):
+            self.continue_from_checkpoint()
+            return
         if self.game_over_restart_button.is_clicked(mouse_pos):
             # Restart from the Game Over screen: resume the same stage.
             self.reset_game()
@@ -1301,7 +1369,7 @@ class Game:
             return
 
         if self.finish_sign is None and self.stage_progress_distance >= target:
-            sign_speed = max(7, int(self.base_speed * cfg.get("enemy_speed_multiplier", 1.0)))
+            sign_speed = max(4, int(self.base_speed * cfg.get("enemy_speed_multiplier", 1.0) * 0.55))
             self.finish_sign = FinishLine(self.road, self.stage, sign_speed)
             self.register_status_message(f"Finish sign appeared for Level {self.stage}", current_time, duration=1800)
 
@@ -1347,8 +1415,24 @@ class Game:
         )
 =======
         self.stop_nitro_boost(current_time, start_cooldown=False)
+<<<<<<< HEAD
         self.register_status_message(f"Level {self.stage} complete", current_time, duration=1200)
 >>>>>>> bcd0777 (feat: add nitro boost gameplay system)
+=======
+
+        self.last_stage_score_bonus, self.last_stage_money_bonus = self.calculate_stage_rewards(self.stage)
+        self.last_stage_bonus_total = self.last_stage_score_bonus + self.last_stage_money_bonus
+        self.score += self.last_stage_score_bonus
+        self.session_money += self.last_stage_money_bonus
+        self.money_popup_amount = self.last_stage_money_bonus
+        self.money_popup_start_time = current_time
+
+        self.register_status_message(
+            f"Level {self.stage} complete: +{self.last_stage_score_bonus} score, +{self.last_stage_money_bonus} money",
+            current_time,
+            duration=1800,
+        )
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.set_state(GameState.STAGE_COMPLETE)
         # initialize map-style transition animation
         try:
@@ -1367,6 +1451,9 @@ class Game:
         self._reset_stage_economy_counters()
         self.finish_sign = None
         self.completed_stage = None
+        self.last_stage_score_bonus = 0
+        self.last_stage_money_bonus = 0
+        self.last_stage_bonus_total = 0
         self.obstacles = []
         self.coins = []
         self.nitro_pickups = []
@@ -1569,6 +1656,7 @@ class Game:
                 self.last_damage_time = current_time
                 self.damage_flash_time = current_time
 <<<<<<< HEAD
+<<<<<<< HEAD
                 if self.damage_sound and not self.music_muted:
                     self.damage_sound.play()
                 if getattr(self, "nitro_active", False):
@@ -1579,6 +1667,10 @@ class Game:
                 if self.should_apply_collision_penalty(obstacle):
                     self.apply_collision_penalty(current_time, self.stage)
 =======
+=======
+                if self.damage_sound and not self.music_muted:
+                    self.damage_sound.play()
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
                 if self.nitro_active:
                     self.stop_nitro_boost(current_time, start_cooldown=True)
 >>>>>>> bcd0777 (feat: add nitro boost gameplay system)
@@ -1841,17 +1933,26 @@ class Game:
         self.exit_button.rect.size = layout["exit_button"].size
 
     def sync_game_over_button_rects(self):
-        button_y_start = HEIGHT // 2 - 20
-        button_spacing = 60
-        button_size = (200, 45)
+        button_spacing = 52
+        button_size = (200, 42)
 
+<<<<<<< HEAD
         restart_y = HEIGHT // 2 + 28
+=======
+        if self.has_checkpoint():
+            button_y_start = HEIGHT // 2 + 22
+            self.game_over_continue_button.rect.topleft = (WIDTH // 2 - 120, button_y_start)
+            self.game_over_continue_button.rect.size = (240, 42)
+            restart_y = button_y_start + button_spacing
+        else:
+            restart_y = HEIGHT // 2 + 28
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
 
         self.game_over_restart_button.rect.topleft = (WIDTH // 2 - 100, restart_y)
         self.game_over_restart_button.rect.size = button_size
-        self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing)
+        self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, restart_y + button_spacing)
         self.game_over_menu_button.rect.size = button_size
-        self.game_over_quit_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing * 2)
+        self.game_over_quit_button.rect.topleft = (WIDTH // 2 - 100, restart_y + button_spacing * 2)
         self.game_over_quit_button.rect.size = button_size
 
     def draw_menu_panel(self, rect, title):
@@ -2214,8 +2315,8 @@ class Game:
         self.screen.blit(lives_label, (24, 132))
 
         for i in range(self.lives):
-            heart_x = 108 + i * 30
-            heart_y = 150
+            heart_x = 104 + i * 28
+            heart_y = 144
             heart_points = []
 
             for angle in range(0, 360, 10):
@@ -2683,14 +2784,22 @@ class Game:
         self.sync_game_over_button_rects()
 
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
+        overlay.fill((0, 0, 0, 220))
         self.screen.blit(overlay, (0, 0))
 
+<<<<<<< HEAD
         
         checkpoint_stage = self.get_checkpoint_stage()
 
         box_width = 470
         box_height = 400
+=======
+        has_checkpoint = self.has_checkpoint()
+        checkpoint_stage = self.get_checkpoint_stage()
+
+        box_width = 470
+        box_height = 470 if has_checkpoint else 400
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         box_left = WIDTH // 2 - box_width // 2
         box_top = HEIGHT // 2 - box_height // 2
 
@@ -2701,23 +2810,30 @@ class Game:
         self.screen.blit(box, (box_left, box_top))
 
         title = self.font.render("GAME OVER", True, RED)
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 170))
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, box_top + 34))
 
         score = self.small_font.render(f"Final Score: {self.score}", True, WHITE)
-        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 120))
+        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, box_top + 88))
 
         stage = self.small_font.render(f"Reached Level: {self.stage}", True, CYAN)
-        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 90))
+        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, box_top + 118))
 
+<<<<<<< HEAD
         
         money_sign = "+" if self.current_level_money >= 0 else "-"
         money = self.small_font.render(f"Money Earned: {money_sign}{abs(self.current_level_money)}", True, GOLD)
+=======
+        money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, box_top + 148))
 
+        info_y = box_top + 181
         if self.is_new_high_score:
             high_score = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, HEIGHT // 2 - 35))
+            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, info_y))
+            info_y += 28
 
+<<<<<<< HEAD
         # Inform the player how Restart behaves: it will resume the same level.
         hint = self.tiny_font.render("Press R to restart (resumes current level).", True, GRAY)
         try:
@@ -2725,6 +2841,27 @@ class Game:
         except Exception:
             info_y = HEIGHT // 2 + 6
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 6))
+=======
+        if has_checkpoint:
+            checkpoint_text = self.tiny_font.render(
+                f"Continue unlocked: Level {checkpoint_stage}",
+                True,
+                GREEN,
+            )
+            self.screen.blit(
+                checkpoint_text,
+                (WIDTH // 2 - checkpoint_text.get_width() // 2, info_y),
+            )
+
+            hint = self.tiny_font.render("Restart starts again from Level 1.", True, GRAY)
+            self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 21))
+
+            self.game_over_continue_button.text = f"CONTINUE LEVEL {checkpoint_stage}"
+            self.game_over_continue_button.draw(self.screen, self.tiny_font)
+        else:
+            hint = self.tiny_font.render("Press R to restart or use the buttons below.", True, GRAY)
+            self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 6))
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
 
         self.game_over_restart_button.draw(self.screen, self.small_font)
         self.game_over_menu_button.draw(self.screen, self.small_font)
@@ -2739,7 +2876,11 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
         # card
+<<<<<<< HEAD
         card_w, card_h = 760, 470
+=======
+        card_w, card_h = 760, 410
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         card = pg.Surface((card_w, card_h), pg.SRCALPHA)
         card.fill((14, 18, 24, 230))
         pg.draw.rect(card, (255, 255, 255, 28), (6, 6, card_w - 12, card_h - 12), 2, border_radius=20)
@@ -2749,11 +2890,16 @@ class Game:
         subtitle = self.small_font.render(f"Level {self.completed_stage or self.stage} finished — next: Level { (self.completed_stage or self.stage) + 1 }", True, WHITE)
         card.blit(subtitle, (34, 74))
 
+<<<<<<< HEAD
         reward_panel = pg.Surface((card_w - 68, 86), pg.SRCALPHA)
+=======
+        reward_panel = pg.Surface((card_w - 68, 48), pg.SRCALPHA)
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         reward_panel.fill((255, 255, 255, 12))
         pg.draw.rect(reward_panel, (255, 214, 90, 90), reward_panel.get_rect(), 2, border_radius=14)
 
         reward_title = self.tiny_font.render("Stage Rewards", True, GOLD)
+<<<<<<< HEAD
         coin_text = self.tiny_font.render(
             f"Coins: {self.stage_coin_count} picked up (+{self.stage_coin_money} money)",
             True,
@@ -2791,6 +2937,21 @@ class Game:
         # map area
         map_x, map_y = 34, 200
         map_w, map_h = card_w - 68, 190
+=======
+        reward_score = self.tiny_font.render(f"Score Bonus: +{self.last_stage_score_bonus}", True, WHITE)
+        reward_money = self.tiny_font.render(f"Money Bonus: +{self.last_stage_money_bonus}", True, GREEN)
+        checkpoint_note = self.tiny_font.render(f"Checkpoint unlocked: Level {(self.completed_stage or self.stage) + 1}", True, CYAN)
+
+        reward_panel.blit(reward_title, (18, 7))
+        reward_panel.blit(reward_score, (170, 7))
+        reward_panel.blit(reward_money, (330, 7))
+        reward_panel.blit(checkpoint_note, (500, 7))
+        card.blit(reward_panel, (34, 104))
+
+        # map area
+        map_x, map_y = 34, 150
+        map_w, map_h = card_w - 68, 200
+>>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         map_rect = pg.Rect(map_x, map_y, map_w, map_h)
         # subtle panel
         panel = pg.Surface((map_w, map_h), pg.SRCALPHA)
@@ -2876,7 +3037,7 @@ class Game:
         hint = self.tiny_font.render("Press Enter or Space to continue", True, WHITE)
         card.blit(hint, (card_w - hint.get_width() - 34, card_h - 46))
 
-        footer = self.tiny_font.render("Map shows nearby levels; progress on next run continues.", True, CYAN)
+        footer = self.tiny_font.render("Checkpoint saved. Continue from your latest reached level after game over.", True, CYAN)
         card.blit(footer, (34, card_h - 46))
 
         self.screen.blit(card, (WIDTH // 2 - card_w // 2, HEIGHT // 2 - card_h // 2))
@@ -3029,3 +3190,4 @@ if __name__ == "__main__":
         pg.init()
         pg.mixer.init()
         Game().run()
+
