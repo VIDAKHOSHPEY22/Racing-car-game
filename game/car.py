@@ -18,6 +18,7 @@ class Car:
         if player:
             # start at default player speed (visual/player velocity)
             self.velocity = float(PLAYER_SPEED_DEFAULT)
+            self.max_speed_bonus = 0.0
         else:
             self.velocity = None
         self.color = color
@@ -55,7 +56,7 @@ class Car:
             pg.draw.ellipse(screen, wheel_color, (self.x + wheel_pos[0], y + wheel_pos[1], 15, 15))
             pg.draw.ellipse(screen, rim_color, (self.x + wheel_pos[0] + 3, y + wheel_pos[1] + 3, 9, 9))
 
-    def move(self, direction=None):
+    def move(self, direction=None, speed_multiplier=1.0):
         if self.player:
             if direction == "left":
                 self.x = max(self.road_boundary_left, self.x - self.speed)
@@ -63,7 +64,7 @@ class Car:
                 self.x = min(self.road_boundary_right, self.x + self.speed)
             # player forward movement is handled by game world (current_speed)
         else:
-            self.y += self.speed
+            self.y += self.speed * speed_multiplier
             return self.y > HEIGHT
 
     def accelerate(self, amount: float):
@@ -72,7 +73,8 @@ class Car:
             return
         # clamp velocity to MIN_SPEED..MAX_SPEED so it never drops below minimum driving speed
         new_v = float(self.velocity + amount)
-        self.velocity = max(MIN_SPEED, min(const.MAX_SPEED, new_v))
+        max_speed = float(const.MAX_SPEED + getattr(self, "max_speed_bonus", 0.0))
+        self.velocity = max(MIN_SPEED, min(max_speed, new_v))
 
     def get_velocity(self):
         return self.velocity

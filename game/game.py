@@ -28,6 +28,14 @@ from .constants import (
     MENU_CARD_HEIGHT,
     MENU_CARD_WIDTH,
     NAVY,
+    NITRO_BOOST_ACCEL,
+    NITRO_COOLDOWN_MS,
+    NITRO_DRAIN_PER_SECOND,
+    NITRO_MAX_CHARGE,
+    NITRO_MAX_SPEED_BONUS,
+    NITRO_MIN_ACTIVATION,
+    NITRO_SPAWN_INTERVAL,
+    NITRO_WORLD_SPEED_MULTIPLIER,
     TRACK_OBJECT_WEIGHTS,
     PLAYER_START_LIVES,
     RED,
@@ -42,6 +50,7 @@ from .constants import (
 )
 from .constants import STAGE_DEFINITIONS
 from .game_state import GameState
+from .nitro import NitroPickup
 # FinishLine moved here from game/finish_line.py to keep repository structure flat.
 class FinishLine:
     def __init__(self, road, stage_id, speed):
@@ -54,8 +63,8 @@ class FinishLine:
         self.road_ratio = 0.5
         self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
 
-    def move(self):
-        self.y += self.speed
+    def move(self, speed_multiplier=1.0):
+        self.y += self.speed * speed_multiplier
         self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
         return self.y > HEIGHT + self.height
 
@@ -178,11 +187,17 @@ class Game:
         self.player = None
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
         self.road = None
         self.last_obstacle_time = 0
         self.last_coin_time = 0
+        self.last_nitro_time = 0
         self.coin_frequency = 2000
         self.obstacle_frequency = DIFFICULTY_SETTINGS[self.selected_difficulty]["obstacle_freq"]
+        self.nitro_charge = 0.0
+        self.nitro_active = False
+        self.nitro_cooldown_until = 0
+        self.boost_pressed_last_frame = False
         
         self.best_score = self.save_data.get("high_score", read_high_score())
         self.session_money = 0
@@ -300,6 +315,7 @@ class Game:
         self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
         self.score = 0
@@ -316,6 +332,7 @@ class Game:
         self.distance = 0.0
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
+        self.last_nitro_time = pg.time.get_ticks()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         self.base_speed = diff_settings["base_speed"]
@@ -339,6 +356,10 @@ class Game:
         self.stage_progress_distance = 0.0
         self.finish_sign = None
         self.completed_stage = None
+        self.nitro_charge = 0.0
+        self.nitro_active = False
+        self.nitro_cooldown_until = 0
+        self.boost_pressed_last_frame = False
         self.paused = False
         self.pause_button.text = "PAUSE"
         self.score_multiplier = 1.0
@@ -586,6 +607,10 @@ class Game:
         if hasattr(coin, "road_ratio"):
             coin.x = self.road.get_travel_x(coin.y, coin.road_ratio, coin.radius * 2) + coin.radius
 
+    def align_nitro_to_road(self, pickup):
+        if hasattr(pickup, "road_ratio"):
+            pickup.x = self.road.get_travel_x(pickup.y, pickup.road_ratio, pickup.radius * 2) + pickup.radius
+
     def clear_hazard_effects(self):
         self.skid_end_time = 0
         self.skid_direction = 0
@@ -598,7 +623,8 @@ class Game:
     def get_player_speed_fraction(self):
         try:
             vel = float(self.player.get_velocity())
-            frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
+            max_speed = const.MAX_SPEED + getattr(self.player, "max_speed_bonus", 0.0)
+            frac = (vel - const.MIN_SPEED) / max(1.0, (max_speed - const.MIN_SPEED))
             return max(0.0, min(1.0, frac))
         except Exception:
             return 0.0
@@ -671,6 +697,93 @@ class Game:
         self.status_message = message
         self.status_message_until = current_time + duration
 
+    def get_effective_world_speed(self):
+        if self.nitro_active:
+            return self.current_speed * NITRO_WORLD_SPEED_MULTIPLIER
+        return self.current_speed
+
+    def get_nitro_motion_multiplier(self):
+        if not self.nitro_active:
+            return 1.0
+        return NITRO_WORLD_SPEED_MULTIPLIER
+
+    def circle_hits_player(self, circle_x, circle_y, radius, tolerance=6):
+        rect = pg.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
+        nearest_x = max(rect.left, min(circle_x, rect.right))
+        nearest_y = max(rect.top, min(circle_y, rect.bottom))
+        dx = circle_x - nearest_x
+        dy = circle_y - nearest_y
+        return dx * dx + dy * dy <= (radius + tolerance) ** 2
+
+    def can_activate_nitro(self, current_time):
+        return (
+            not self.nitro_active
+            and self.nitro_charge >= NITRO_MIN_ACTIVATION
+            and current_time >= self.nitro_cooldown_until
+        )
+
+    def start_nitro_boost(self, current_time):
+        if not self.can_activate_nitro(current_time):
+            return False
+
+        self.nitro_active = True
+        self.player.max_speed_bonus = NITRO_MAX_SPEED_BONUS
+        self.player.accelerate(NITRO_MAX_SPEED_BONUS * 0.45)
+        self.road.speed_multiplier = NITRO_WORLD_SPEED_MULTIPLIER
+        self.register_status_message("Nitro engaged", current_time, duration=900)
+        return True
+
+    def stop_nitro_boost(self, current_time, start_cooldown=True):
+        self.nitro_active = False
+        if self.player is not None:
+            self.player.max_speed_bonus = 0.0
+        if self.road is not None:
+            self.road.speed_multiplier = 1.0
+        if start_cooldown:
+            self.nitro_cooldown_until = current_time + NITRO_COOLDOWN_MS
+
+    def update_nitro_state(self, current_time, dt):
+        if not self.nitro_active:
+            if self.player is not None:
+                self.player.max_speed_bonus = 0.0
+            if self.road is not None:
+                self.road.speed_multiplier = 1.0
+            return
+
+        self.nitro_charge = max(0.0, self.nitro_charge - (NITRO_DRAIN_PER_SECOND * dt))
+        self.player.max_speed_bonus = NITRO_MAX_SPEED_BONUS
+        self.road.speed_multiplier = NITRO_WORLD_SPEED_MULTIPLIER
+        self.player.accelerate(NITRO_BOOST_ACCEL * dt)
+
+        if self.nitro_charge <= 0:
+            self.stop_nitro_boost(current_time, start_cooldown=True)
+            self.register_status_message("Nitro cooling down", current_time, duration=1200)
+
+    def spawn_nitro_pickup(self, current_time):
+        if self.finish_sign is not None or self.nitro_active or len(self.nitro_pickups) >= 1:
+            return
+        if current_time - self.last_nitro_time <= NITRO_SPAWN_INTERVAL:
+            return
+
+        lane_ratio = random.uniform(0.14, 0.86)
+        pickup = NitroPickup(self.road.get_travel_x(0, lane_ratio, 26) + 13, -70)
+        pickup.road_ratio = lane_ratio
+        self.nitro_pickups.append(pickup)
+        self.last_nitro_time = current_time
+
+    def collect_nitro_pickup(self, pickup, current_time):
+        self.nitro_charge = min(NITRO_MAX_CHARGE, self.nitro_charge + pickup.charge_value)
+        self.consecutive_actions += 1
+        self.update_multiplier()
+        if self.player is not None:
+            self.player.accelerate(max(8.0, pickup.charge_value * 0.75))
+
+        activated = self.start_nitro_boost(current_time)
+        if activated:
+            self.register_status_message("Nitro pickup: boost engaged", current_time, duration=1000)
+        else:
+            self.register_status_message("Nitro collected", current_time, duration=900)
+
     def get_level_label(self, level=None):
         return f"Level {self.stage if level is None else level}"
 
@@ -717,9 +830,11 @@ class Game:
         self.finish_sign = None
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
         self.clear_hazard_effects()
         if current_time is None:
             current_time = pg.time.get_ticks()
+        self.stop_nitro_boost(current_time, start_cooldown=False)
         self.register_status_message(f"Level {self.stage} complete", current_time, duration=1200)
         self.set_state(GameState.STAGE_COMPLETE)
         # initialize map-style transition animation
@@ -740,7 +855,9 @@ class Game:
         self.completed_stage = None
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
         self.clear_hazard_effects()
+        self.stop_nitro_boost(pg.time.get_ticks(), start_cooldown=False)
         self.load_stage_config(self.stage)
         self.weather.update_for_stage(
             stage=self.stage,
@@ -750,6 +867,7 @@ class Game:
         )
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
+        self.last_nitro_time = pg.time.get_ticks()
         self.paused = False
         self.set_state(GameState.PLAYING)
         if current_time is None:
@@ -814,6 +932,10 @@ class Game:
             self.player.move("left")
         if keys[pg.K_RIGHT]:
             self.player.move("right")
+        boost_pressed = keys[pg.K_SPACE] or keys[pg.K_LSHIFT] or keys[pg.K_RSHIFT]
+        if boost_pressed and not self.boost_pressed_last_frame:
+            self.start_nitro_boost(current_time)
+        self.boost_pressed_last_frame = boost_pressed
         # Brake input (S or Down) takes priority, then accelerate, otherwise friction
         if (keys[pg.K_s] or keys[pg.K_DOWN]) and hasattr(self.player, "accelerate"):
             # strong deceleration while braking
@@ -825,6 +947,8 @@ class Game:
             # apply friction (deceleration) when not accelerating nor braking
             if hasattr(self.player, "accelerate"):
                 self.player.accelerate(-FRICTION * dt)
+
+        self.update_nitro_state(current_time, dt)
 
         # update display-only speed from player's internal velocity (do not change game logic current_speed)
         try:
@@ -868,7 +992,8 @@ class Game:
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        speed_factor = max(self.current_speed / BASE_SPEED, 1)
+        speed_factor = max(self.get_effective_world_speed() / BASE_SPEED, 1)
+        motion_multiplier = self.get_nitro_motion_multiplier()
 
         stage_density = max(0.55, getattr(self, "current_stage_config", {}).get("traffic_density", 1.0))
         effective_obstacle_interval = (self.obstacle_frequency / stage_density) / speed_factor
@@ -881,7 +1006,7 @@ class Game:
 
         player_rect = self.get_player_collision_rect()
         for obstacle in self.obstacles[:]:
-            if obstacle.move():
+            if obstacle.move(speed_multiplier=motion_multiplier):
                 self.obstacles.remove(obstacle)
                 self.consecutive_actions += 1
                 self.update_multiplier()
@@ -902,6 +1027,8 @@ class Game:
                 self.lives -= 1
                 self.last_damage_time = current_time
                 self.damage_flash_time = current_time
+                if self.nitro_active:
+                    self.stop_nitro_boost(current_time, start_cooldown=True)
                 if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
                     self.register_status_message("Barrier impact: heavy damage", current_time)
                 else:
@@ -914,7 +1041,7 @@ class Game:
                         pg.mixer.music.fadeout(2000)
 
         if self.finish_sign is not None:
-            if self.finish_sign.move():
+            if self.finish_sign.move(speed_multiplier=motion_multiplier):
                 self.enter_stage_complete(current_time)
             else:
                 player_rect = self.get_player_collision_rect()
@@ -928,20 +1055,14 @@ class Game:
             self.coins.append(new_coin)
             self.last_coin_time = current_time
 
+        self.spawn_nitro_pickup(current_time)
+
         for coin in self.coins[:]:
-            if coin.move():
+            if coin.move(speed_multiplier=motion_multiplier):
                 self.coins.remove(coin)
                 continue
             self.align_coin_to_road(coin)
-            # Use circle-rect collision test so fast passes still register.
-            rect = pg.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
-            nearest_x = max(rect.left, min(coin.x, rect.right))
-            nearest_y = max(rect.top, min(coin.y, rect.bottom))
-            dx = coin.x - nearest_x
-            dy = coin.y - nearest_y
-            # small tolerance so high-speed passes are captured
-            tol = 6
-            if dx * dx + dy * dy <= (coin.radius + tol) ** 2:
+            if self.circle_hits_player(coin.x, coin.y, coin.radius):
                 coin.grow()
                 self.coins.remove(coin)
                 if self.coin_sound and not self.music_muted:
@@ -958,6 +1079,15 @@ class Game:
                 self.multiplier_display_time = pg.time.get_ticks()
                 self.multiplier_text_pos = (coin.x, coin.y)
                 self.update_stage_progression()
+
+        for pickup in self.nitro_pickups[:]:
+            if pickup.move(speed_multiplier=motion_multiplier):
+                self.nitro_pickups.remove(pickup)
+                continue
+            self.align_nitro_to_road(pickup)
+            if self.circle_hits_player(pickup.x, pickup.y, pickup.radius, tolerance=4):
+                self.collect_nitro_pickup(pickup, current_time)
+                self.nitro_pickups.remove(pickup)
 
         if current_time - self.multiplier_timer > 3000:
             if self.score_multiplier > 1.0:
@@ -990,7 +1120,8 @@ class Game:
             # fraction of speed between MIN_SPEED and current runtime MAX_SPEED
             try:
                 vel = float(self.player.get_velocity())
-                frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
+                max_speed = const.MAX_SPEED + getattr(self.player, "max_speed_bonus", 0.0)
+                frac = (vel - const.MIN_SPEED) / max(1.0, (max_speed - const.MIN_SPEED))
                 frac = max(0.0, min(1.0, frac))
             except Exception:
                 frac = 0.0
@@ -1015,6 +1146,8 @@ class Game:
 
             for coin in self.coins:
                 coin.draw(self.screen)
+            for pickup in self.nitro_pickups:
+                pickup.draw(self.screen)
 
             self.weather.draw_environment(
                 self.screen,
@@ -1047,6 +1180,7 @@ class Game:
                 self.tiny_font,
                 self.selected_difficulty,
             )    
+            self.draw_top_right_hud()
             self.draw_multiplier_feedback()
             self.draw_damage_feedback()
             if self.paused:
@@ -1672,6 +1806,59 @@ class Game:
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
             self.screen.blit(badge, (24, 440))
+
+    def draw_top_right_hud(self):
+        panel_width = 226
+        panel_height = 112
+        panel_x = WIDTH - panel_width - 14
+        panel_y = 12
+
+        self.pause_button.rect.topleft = (panel_x + 122, panel_y + 10)
+        self.pause_button.rect.size = (92, 30)
+        self.sound_button.rect.topleft = (panel_x + 122, panel_y + 48)
+        self.sound_button.rect.size = (92, 30)
+
+        panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
+        panel.fill((8, 14, 24, 220))
+        pg.draw.rect(panel, (255, 255, 255, 42), (0, 0, panel_width, panel_height), 2, border_radius=16)
+
+        speed_text = self.tiny_font.render(f"Speed {self.display_speed:.1f} km/h", True, WHITE)
+        panel.blit(speed_text, (14, 14))
+
+        label = self.tiny_font.render("Nitro", True, (175, 235, 255))
+        panel.blit(label, (14, 40))
+
+        bar_rect = pg.Rect(14, 62, 96, 15)
+        pg.draw.rect(panel, (24, 34, 48), bar_rect, border_radius=7)
+        fill_width = int(bar_rect.width * (self.nitro_charge / max(1.0, NITRO_MAX_CHARGE)))
+        if fill_width > 0:
+            fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
+            bar_color = (64, 220, 255) if not self.nitro_active else (255, 170, 72)
+            pg.draw.rect(panel, bar_color, fill_rect, border_radius=7)
+        pg.draw.rect(panel, (210, 245, 255), bar_rect, 2, border_radius=7)
+
+        if self.nitro_active:
+            status = "Boost active"
+            status_color = (255, 190, 92)
+        elif pg.time.get_ticks() < self.nitro_cooldown_until:
+            remaining = max(0.0, (self.nitro_cooldown_until - pg.time.get_ticks()) / 1000.0)
+            status = f"Cooldown {remaining:.1f}s"
+            status_color = YELLOW
+        elif self.nitro_charge >= NITRO_MIN_ACTIVATION:
+            status = "SPACE / SHIFT"
+            status_color = GREEN
+        else:
+            status = "Collect nitro"
+            status_color = GRAY
+
+        status_text = self.tiny_font.render(status, True, status_color)
+        charge_text = self.tiny_font.render(f"{int(self.nitro_charge)}%", True, WHITE)
+        panel.blit(status_text, (14, 86))
+        panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 86))
+
+        self.screen.blit(panel, (panel_x, panel_y))
+        self.pause_button.draw(self.screen, self.tiny_font)
+        self.sound_button.draw(self.screen, self.tiny_font)
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
