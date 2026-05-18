@@ -185,3 +185,40 @@ MAX_SPEED = 120.0     # max allowed player speed
 BRAKE_DECEL = 40.0
 # Health system
 DAMAGE_COOLDOWN = 1500  # milliseconds
+
+
+WEATHER_SPEED_LIMIT_RATIOS = {
+    "rain": {
+        "safe": 0.65,
+        "high_risk": 0.85,
+    },
+    "snow": {
+        "safe": 0.55,
+        "high_risk": 0.75,
+    },
+}
+
+WEATHER_DIFFICULTY_MODIFIERS = {
+    "Easy": {
+        "slip_multiplier": 0.75,
+        "visibility_multiplier": 0.75,
+        "particle_multiplier": 0.75,
+    },
+    "Medium": {
+        "slip_multiplier": 1.0,
+        "visibility_multiplier": 1.0,
+        "particle_multiplier": 1.0,
+    },
+    "Hard": {
+        "slip_multiplier": 1.25,
+        "visibility_multiplier": 1.15,
+        "particle_multiplier": 1.2,
+    },
+}
+
+WEATHER_BASE_PARTICLES = {
+    "rain": 45,
+    "snow": 30,
+}
+
+WEATHER_ALERT_DURATION = 2600
