@@ -1,7 +1,7 @@
 # `atari.py` — Bugs & Enhancements
 
 ## Open Issues
-- [ ] None!
+- [ ] 
 
 ## Completed
 
