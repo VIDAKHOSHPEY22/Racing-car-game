@@ -82,8 +82,8 @@ class Hazard:
                 for _ in range(3)
             ]
 
-    def move(self):
-        self.y += self.speed
+    def move(self, speed_multiplier=1.0):
+        self.y += self.speed * speed_multiplier
         return self.y > HEIGHT + self.height
 
     def get_collision_rect(self):

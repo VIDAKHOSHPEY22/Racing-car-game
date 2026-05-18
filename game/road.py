@@ -9,6 +9,7 @@ class Road:
     def __init__(self, base_speed=10):
         self.road_width = 500
         self.base_road_x = (WIDTH - self.road_width) // 2
+        self.speed_multiplier = 1.0
         self.stripes = []
         for i in range(10):
             self.stripes.append({"y": i * 120 - 100, "width": 60, "height": 20, "speed": base_speed + 2})
@@ -59,6 +60,6 @@ class Road:
 
     def update(self):
         for stripe in self.stripes:
-            stripe["y"] += stripe["speed"]
+            stripe["y"] += stripe["speed"] * self.speed_multiplier
             if stripe["y"] > HEIGHT:
                 stripe["y"] = -stripe["height"]
