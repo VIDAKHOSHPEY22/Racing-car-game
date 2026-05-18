@@ -1,7 +1,6 @@
-# `atari.py` — Bugs & Enhancements
+# `atari.py` Checklist
 
 ## Open Issues
-- [ ] 
 
 ## Completed
 
