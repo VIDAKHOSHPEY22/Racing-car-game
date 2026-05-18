@@ -1,7 +1,7 @@
 # `atari.py` — Bugs & Enhancements
 
 ## Open Issues
-- [ ] Fix Linting
+- [ ] None!
 
 ## Completed
 
@@ -13,7 +13,8 @@
 - [x] Add obstacles to increase difficulty
 - [x] Fix HUD hearts should look like ♥
 - [x] Performance Improvements to make gameplay smoother
-- [x] for HUD Menu on bootup it should have arrow keys ← and →
+- [x] for HUD Menu on bootup it should have arrow keys ← and →#
+- [x] Fix Linting
 
 ---
 
