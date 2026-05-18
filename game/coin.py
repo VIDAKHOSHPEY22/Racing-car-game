@@ -49,8 +49,8 @@ class Coin:
         if self.variant == "red":
             pg.draw.circle(screen, (255, 255, 255), (self.x + 2, self.y + 1), max(2, self.radius // 4))
 
-    def move(self):
-        self.y += self.speed
+    def move(self, speed_multiplier=1.0):
+        self.y += self.speed * speed_multiplier
         return self.y > HEIGHT
 
     def grow(self):
