@@ -122,8 +122,12 @@ from .storage import (
     save_player_preferences,
 )
 from . import constants as const
+<<<<<<< HEAD
 from .game_state import GameState
 
+=======
+from .weather import WeatherManager
+>>>>>>> 3df94ff (Add dynamic weather system with visual and driving effects)
 
 class Game:
     def __init__(self):
@@ -188,6 +192,7 @@ class Game:
         self.status_message_until = 0
         self.finish_sign = None
         self.completed_stage = None
+        self.weather = WeatherManager()
 
         # Level transition / map animation state
         self.level_transition_start = None
@@ -493,6 +498,13 @@ class Game:
         self.consecutive_actions = 0
         self.next_stage_score = 3
         self.clear_hazard_effects()
+        self.weather.reset()
+        self.weather.update_for_stage(
+            stage=self.stage,
+            progress_ratio=0.0,
+            selected_difficulty=self.selected_difficulty,
+            current_time=pg.time.get_ticks(),
+        )
         self.update_player_bounds()
 
         if change_state:
@@ -1160,6 +1172,7 @@ class Game:
         self.coins = []
         self.clear_hazard_effects()
         self.load_stage_config(self.stage)
+<<<<<<< HEAD
         self.coin_frequency = self.get_coin_spawn_interval()
         self.max_active_coins = self.get_max_active_coins()
         try:
@@ -1171,6 +1184,14 @@ class Game:
             )
         except Exception:
             pass
+=======
+        self.weather.update_for_stage(
+            stage=self.stage,
+            progress_ratio=0.0,
+            selected_difficulty=self.selected_difficulty,
+            current_time=pg.time.get_ticks(),
+        )
+>>>>>>> 3df94ff (Add dynamic weather system with visual and driving effects)
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
         self.paused = False
@@ -1268,6 +1289,31 @@ class Game:
                 self.stage_progress_distance += vel * dt
         except Exception:
             pass
+        
+        try:
+            target_distance = float(
+                getattr(self, "current_stage_config", {}).get("distance_target", 1)
+            )
+            stage_progress_ratio = self.stage_progress_distance / max(1.0, target_distance)
+            stage_progress_ratio = max(0.0, min(1.0, stage_progress_ratio))
+        except Exception:
+            stage_progress_ratio = 0.0
+
+        try:
+            hazard_slip_active = current_time < self.skid_end_time
+            self.weather.update(
+                current_time=current_time,
+                dt=dt,
+                player=self.player,
+                keys=keys,
+                stage=self.stage,
+                stage_progress_ratio=stage_progress_ratio,
+                selected_difficulty=self.selected_difficulty,
+                hazard_slip_active=hazard_slip_active,
+            )
+        except Exception:
+            pass
+        
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
@@ -1431,6 +1477,13 @@ class Game:
             for coin in self.coins:
                 coin.draw(self.screen)
 
+            self.weather.draw_environment(
+                self.screen,
+                self.player,
+                self.selected_difficulty,
+                player_visual_y=target_visual_y,
+            )
+
             self.draw_scoreboard()
             self.draw_status_banner()
             self.pause_button.draw(self.screen, self.tiny_font)
@@ -1448,6 +1501,13 @@ class Game:
                 bg.fill((0, 0, 0, 140))
                 self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
                 self.screen.blit(speed_text, speed_rect)
+                
+            self.weather.draw_hud(
+                self.screen,
+                self.small_font,
+                self.tiny_font,
+                self.selected_difficulty,
+            )    
             self.draw_multiplier_feedback()
             self.draw_damage_feedback()
             if self.paused:
