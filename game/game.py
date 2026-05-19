@@ -144,7 +144,14 @@ from .weather import WeatherManager
 
 class Game:
     def __init__(self):
-        self.screen = pg.display.set_mode((WIDTH, HEIGHT))
+        self.logical_size = (WIDTH, HEIGHT)
+        self.screen = pg.Surface(self.logical_size)
+        self.display_surface = None
+        self.viewport = pg.Rect(0, 0, WIDTH, HEIGHT)
+        self.display_scale = 1.0
+        self.source_view_rect = pg.Rect(0, 0, WIDTH, HEIGHT)
+        self.fullscreen = True
+        self._configure_display(fullscreen=os.environ.get("SDL_VIDEODRIVER", "").lower() != "dummy")
         pg.display.set_caption("Sleek Street Racer")
         self.clock = pg.time.Clock()
         self.font = pg.font.Font(None, 42)
@@ -265,6 +272,79 @@ class Game:
 
     def set_state(self, state):
         self.state = state
+
+    def _configure_display(self, fullscreen, window_size=None):
+        flags = pg.DOUBLEBUF
+        if fullscreen:
+            flags |= pg.FULLSCREEN
+            size = (0, 0)
+        else:
+            flags |= pg.RESIZABLE
+            size = window_size or (max(1280, WIDTH * 2), max(720, HEIGHT * 2))
+
+        try:
+            self.display_surface = pg.display.set_mode(size, flags, vsync=1)
+        except TypeError:
+            self.display_surface = pg.display.set_mode(size, flags)
+
+        self.fullscreen = fullscreen
+        self._update_viewport()
+
+    def _update_viewport(self):
+        if self.display_surface is None:
+            self.viewport = pg.Rect(0, 0, WIDTH, HEIGHT)
+            self.display_scale = 1.0
+            self.source_view_rect = pg.Rect(0, 0, WIDTH, HEIGHT)
+            return
+
+        display_width, display_height = self.display_surface.get_size()
+        logical_width, logical_height = self.logical_size
+        self.display_scale = min(display_width / logical_width, display_height / logical_height)
+
+        viewport_width = max(1, int(logical_width * self.display_scale))
+        viewport_height = max(1, int(logical_height * self.display_scale))
+        viewport_x = (display_width - viewport_width) // 2
+        viewport_y = (display_height - viewport_height) // 2
+        self.viewport = pg.Rect(viewport_x, viewport_y, viewport_width, viewport_height)
+        self.source_view_rect = pg.Rect(0, 0, logical_width, logical_height)
+
+    def _to_logical_pos(self, pos):
+        if self.display_scale <= 0 or self.viewport.width <= 0 or self.viewport.height <= 0:
+            return (-1, -1)
+
+        if not self.viewport.collidepoint(pos):
+            return (-1, -1)
+
+        local_x = pos[0] - self.viewport.x
+        local_y = pos[1] - self.viewport.y
+        x = int(local_x * WIDTH / self.viewport.width)
+        y = int(local_y * HEIGHT / self.viewport.height)
+
+        logical_width, logical_height = self.logical_size
+        x = max(0, min(logical_width - 1, x))
+        y = max(0, min(logical_height - 1, y))
+        return (x, y)
+
+    def _get_mouse_pos(self):
+        return self._to_logical_pos(pg.mouse.get_pos())
+
+    def _present_frame(self):
+        if self.display_surface is None:
+            return
+
+        self.display_surface.fill((24, 30, 42))
+        if self.viewport.width == WIDTH and self.viewport.height == HEIGHT:
+            self.display_surface.blit(self.screen, self.viewport.topleft)
+        else:
+            frame = pg.transform.smoothscale(self.screen, (self.viewport.width, self.viewport.height))
+            self.display_surface.blit(frame, self.viewport.topleft)
+        pg.display.flip()
+
+    def toggle_fullscreen(self):
+        if os.environ.get("SDL_VIDEODRIVER", "").lower() == "dummy":
+            return
+        self._configure_display(not self.fullscreen)
+
 
     def _sync_player_skin(self):
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
@@ -542,20 +622,29 @@ class Game:
                 pg.quit()
                 sys.exit()
 
+            if event.type == pg.VIDEORESIZE and not self.fullscreen:
+                self._configure_display(False, window_size=event.size)
+                continue
+
             if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                logical_mouse_pos = self._to_logical_pos(event.pos)
+                if logical_mouse_pos == (-1, -1):
+                    continue
                 if self.state == GameState.MENU:
-                    self.handle_menu_click(event.pos)
+                    self.handle_menu_click(logical_mouse_pos)
                 elif self.state == GameState.HIGH_SCORE:
-                    if self.menu_button.is_clicked(event.pos):
+                    if self.menu_button.is_clicked(logical_mouse_pos):
                         self.return_to_menu()
                 elif self.state == GameState.GARAGE:
-                    self.handle_garage_click(event.pos)
+                    self.handle_garage_click(logical_mouse_pos)
                 elif self.state == GameState.PLAYING:
-                    self.handle_playing_click(event.pos)
+                    self.handle_playing_click(logical_mouse_pos)
                 elif self.state == GameState.GAME_OVER:
-                    self.handle_game_over_click(event.pos)
+                    self.handle_game_over_click(logical_mouse_pos)
 
             if event.type == pg.KEYDOWN:
+                if event.key == pg.K_F11:
+                    self.toggle_fullscreen()
                 if event.key in {pg.K_p, pg.K_ESCAPE}:
                     if self.state == GameState.PLAYING:
                         self.toggle_pause()
@@ -1270,7 +1359,7 @@ class Game:
             if self.state == GameState.GAME_OVER:
                 self.draw_game_over()
 
-        pg.display.flip()
+        self._present_frame()
 
     def draw_background(self):
         for y in range(HEIGHT):
@@ -1396,7 +1485,7 @@ class Game:
             button_rect = layout["difficulty_buttons"][index]
             color = GREEN if difficulty == self.selected_difficulty else GRAY
             hover_color = (min(color[0] + 30, 255), min(color[1] + 30, 255), min(color[2] + 30, 255))
-            mouse_pos = pg.mouse.get_pos()
+            mouse_pos = self._get_mouse_pos()
             button_color = hover_color if button_rect.collidepoint(mouse_pos) else color
             pg.draw.rect(self.screen, button_color, button_rect, border_radius=8)
             pg.draw.rect(self.screen, WHITE, button_rect, 2, border_radius=8)
@@ -1412,7 +1501,7 @@ class Game:
         preview_car = Car(preview_rect.centerx - 25, preview_rect.y + 6, self.player_color, True, self.player_type)
         preview_car.draw(self.screen)
 
-        mouse_pos = pg.mouse.get_pos()
+        mouse_pos = self._get_mouse_pos()
         for arrow_rect, symbol in [(layout["left_arrow"], "<"), (layout["right_arrow"], ">")]:
             hover = arrow_rect.collidepoint(mouse_pos)
             color = GREEN if hover else GRAY
@@ -1572,7 +1661,7 @@ class Game:
         )
         preview_car.draw(self.screen)
 
-        mouse_pos = pg.mouse.get_pos()
+        mouse_pos = self._get_mouse_pos()
         for arrow_rect, symbol in [
             (layout["left_arrow"], "<"),
             (layout["right_arrow"], ">"),
@@ -1694,18 +1783,6 @@ class Game:
         self.score_animation += 0.1
         pulse = int(5 * abs(math.sin(self.score_animation)))
 
-        hud_width = 236
-        hud_height = 448
-        hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
-        hud_bg.fill((10, 14, 22, 208))
-        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
-
-        for index in range(hud_height):
-            alpha = int(30 * (1 - index / hud_height))
-            pg.draw.line(hud_bg, (38, 164, 184, alpha), (0, index), (hud_width, index))
-
-        self.screen.blit(hud_bg, (10, 10))
-
         score_color = (255, 255, 100 + pulse) if self.score > 0 else WHITE
         score_text = self.small_font.render(f"Score: {self.score}", True, score_color)
         self.screen.blit(score_text, (24, 24))
@@ -1764,6 +1841,46 @@ class Game:
         if ("fog" in getattr(self.weather, "active_weather", [])) or (fog_intensity > 0.05):
             fog_trigger = self.weather.get_fog_speed_trigger(self.selected_difficulty)
             weather_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
+
+        active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
+        visible_status_count = max(1, min(3, len(active_statuses)))
+        legend_card_width = 188
+
+        dynamic_texts = [
+            f"Score: {self.score}",
+            f"Level: {self.stage}",
+            f"Speed: {speed_val:.1f} km/h",
+            f"Distance: {int(self.distance)} m",
+            f"Mode: {self.selected_difficulty}",
+            f"Vehicle: {CAR_SKINS[self.selected_skin]['name']}",
+            f"Money: {self.total_money + (self.session_money if self.state != GameState.GAME_OVER else 0)}",
+            f"Multiplier: x{self.score_multiplier:.1f}",
+            "Track Watch",
+            "Active",
+        ]
+        if finish_line:
+            dynamic_texts.append(finish_line)
+        dynamic_texts.extend(weather_lines[:2])
+
+        max_text_width = 0
+        for text in dynamic_texts:
+            width = self.tiny_font.size(text)[0]
+            if width > max_text_width:
+                max_text_width = width
+
+        hud_width = max(236, max_text_width + 56, legend_card_width + 48)
+        status_rows_bottom = 440 + (visible_status_count - 1) * 16 + 18
+        hud_height = max(448, status_rows_bottom + 18)
+
+        hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
+        hud_bg.fill((10, 14, 22, 208))
+        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
+
+        for index in range(hud_height):
+            alpha = int(30 * (1 - index / hud_height))
+            pg.draw.line(hud_bg, (38, 164, 184, alpha), (0, index), (hud_width, index))
+
+        self.screen.blit(hud_bg, (10, 10))
 
         for idx, line in enumerate(weather_lines[:2]):
             info = self.tiny_font.render(line, True, CYAN)
@@ -1867,9 +1984,9 @@ class Game:
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
             card_y = (326 if (finish_line and self.score_multiplier > 1.0) else 318) + index * 22
-            card = pg.Surface((188, 20), pg.SRCALPHA)
+            card = pg.Surface((legend_card_width, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
-            pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
+            pg.draw.rect(card, (*color, 92), (0, 0, legend_card_width, 20), 1, border_radius=8)
             pg.draw.circle(card, color, (10, 10), 4)
             label_text = self.tiny_font.render(label, True, WHITE)
             effect_text = self.tiny_font.render(effect, True, color)
@@ -1877,21 +1994,20 @@ class Game:
             card.blit(effect_text, (18 + label_text.get_width() + 6, 2))
             self.screen.blit(card, (card_x, card_y))
 
-        active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
         self.screen.blit(status_title, (24, 418))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
-                badge = pg.Surface((188, 18), pg.SRCALPHA)
+                badge = pg.Surface((legend_card_width, 18), pg.SRCALPHA)
                 badge.fill((255, 255, 255, 10))
-                pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
+                pg.draw.rect(badge, (*color, 90), (0, 0, legend_card_width, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
                 self.screen.blit(badge, (24, 440 + index * 16))
         else:
-            badge = pg.Surface((188, 18), pg.SRCALPHA)
+            badge = pg.Surface((legend_card_width, 18), pg.SRCALPHA)
             badge.fill((255, 255, 255, 10))
-            pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
+            pg.draw.rect(badge, (*GREEN, 90), (0, 0, legend_card_width, 18), 1, border_radius=8)
             status_text = self.tiny_font.render("Road stable", True, GREEN)
             badge.blit(status_text, (8, 2))
             self.screen.blit(badge, (24, 440))
