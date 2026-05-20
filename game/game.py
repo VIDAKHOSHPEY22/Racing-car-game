@@ -18,6 +18,24 @@ from .constants import (
     CYAN,
     DEFAULT_DIFFICULTY,
     DEFAULT_STAGE,
+    COIN_MAX_ACTIVE,
+    COIN_CHAIN_LENGTH,
+    COIN_CHAIN_VERTICAL_SPACING,
+    COIN_RADIUS,
+    COIN_CHAIN_SPAWN_BASE_CHANCE,
+    COIN_CHAIN_SPAWN_STAGE_STEP,
+    COIN_CHAIN_SPAWN_MAX_CHANCE,
+    COIN_RED_SPAWN_BASE_CHANCE,
+    COIN_RED_SPAWN_STAGE_STEP,
+    COIN_RED_SPAWN_MAX_CHANCE,
+    COIN_SPAWN_BASE_INTERVAL,
+    COIN_SPAWN_MIN_INTERVAL,
+    COIN_SPAWN_STAGE_STEP,
+    ECONOMY_DISTANCE_REWARD_MONEY,
+    ECONOMY_DISTANCE_REWARD_STEP,
+    ECONOMY_STAGE_REWARD_MONEY,
+    COLLISION_MONEY_PENALTY_BASE,
+    COLLISION_MONEY_PENALTY_STAGE_STEP,
     DIFFICULTY_SETTINGS,
     FPS,
     GOLD,
@@ -40,9 +58,6 @@ from .constants import (
     YELLOW,
     OBSTACLE_PASS_SCORE,
 )
-from .constants import STAGE_DEFINITIONS
-from .game_state import GameState
-# FinishLine moved here from game/finish_line.py to keep repository structure flat.
 class FinishLine:
     def __init__(self, road, stage_id, speed):
         self.road = road
@@ -107,6 +122,7 @@ from .storage import (
     save_player_preferences,
 )
 from . import constants as const
+from .game_state import GameState
 
 
 class Game:
@@ -157,6 +173,12 @@ class Game:
         self.multiplier_text_pos = (0, 0)
         self.consecutive_actions = 0
         self.next_stage_score = 3
+        self.stage_coin_count = 0
+        self.stage_coin_money = 0
+        self.stage_distance_reward_money = 0
+        self.stage_reward_money = 0
+        self.stage_collision_penalty_money = 0
+        self.next_distance_reward_at = ECONOMY_DISTANCE_REWARD_STEP
         self.skid_end_time = 0
         self.skid_direction = 0
         self.skid_strength = 0.0
@@ -179,10 +201,11 @@ class Game:
         self.last_obstacle_time = 0
         self.last_coin_time = 0
         self.coin_frequency = 2000
+        self.max_active_coins = COIN_MAX_ACTIVE.get(self.selected_difficulty, 2)
         self.obstacle_frequency = DIFFICULTY_SETTINGS[self.selected_difficulty]["obstacle_freq"]
         
         self.best_score = self.save_data.get("high_score", read_high_score())
-        self.session_money = 0
+        self.current_level_money = 0
         self.is_new_high_score = False
 
         self.money_popup_amount = 0
@@ -195,9 +218,9 @@ class Game:
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
         self.pause_menu_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 120, 160, 45, "MAIN MENU")
-        self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 - 20, 200, 45, "RESTART")
-        self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "MAIN MENU")
-        self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "QUIT")
+        self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "RESTART")
+        self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "MAIN MENU")
+        self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 160, 200, 45, "QUIT")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
         self.current_music = load_music()
@@ -217,15 +240,211 @@ class Game:
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
         self.player_type = CAR_SKINS[self.selected_skin]["type"]
 
-    def reset_game(self, change_state=True):
+    def _get_selected_skin_stats(self):
+        skin = CAR_SKINS[self.selected_skin]
+        return {
+            "speed_bonus": float(skin.get("speed_bonus", 0)),
+            "handling_bonus": float(skin.get("handling_bonus", 0)),
+        }
+
+    def _apply_vehicle_starting_stats(self):
+        if self.player is None:
+            return
+
+        stats = self._get_selected_skin_stats()
+
+        if hasattr(self.player, "velocity"):
+            self.player.velocity = float(const.PLAYER_SPEED_DEFAULT + stats["speed_bonus"])
+
+    def _get_unlocked_skin_indices(self):
+        unlocked = self.save_data.get("unlocked_skins", [0])
+        valid_indices = []
+
+        for index in unlocked:
+            try:
+                index = int(index)
+            except (TypeError, ValueError):
+                continue
+
+            if 0 <= index < len(CAR_SKINS) and index not in valid_indices:
+                valid_indices.append(index)
+
+        if 0 not in valid_indices:
+            valid_indices.insert(0, 0)
+
+        return valid_indices or [0]
+
+    def _refresh_profile_from_save(self):
+        self.save_data = load_save_data()
+        self.selected_skin = self.save_data.get("selected_skin", 0)
+        self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
+        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
+
+        if self.selected_difficulty not in DIFFICULTY_SETTINGS:
+            self.selected_difficulty = DEFAULT_DIFFICULTY
+
+        self.total_money = self.save_data.get("total_money", 0)
+        self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
+        self.games_played = self.save_data.get("games_played", 0)
+        self.total_score = self.save_data.get("total_score", 0)
         self._sync_player_skin()
+
+    def _cycle_unlocked_skin(self, direction):
+        unlocked = self._get_unlocked_skin_indices()
+
+        if self.selected_skin not in unlocked:
+            self.selected_skin = unlocked[0]
+
+        current_pos = unlocked.index(self.selected_skin)
+        self.selected_skin = unlocked[(current_pos + direction) % len(unlocked)]
+
+        self._sync_player_skin()
+        self.save_preferences()
+        self.reset_game(change_state=False)
+
+    def register_garage_message(self, message, duration=1600):
+        self.garage_message = message
+        self.garage_message_until = pg.time.get_ticks() + duration
+
+    def get_checkpoint_stage(self):
+        try:
+            checkpoint_stage = int(self.stage)
+        except (TypeError, ValueError):
+            checkpoint_stage = DEFAULT_STAGE
+        return max(DEFAULT_STAGE, checkpoint_stage)
+
+    def has_checkpoint(self):
+        return self.get_checkpoint_stage() > DEFAULT_STAGE
+
+    def calculate_stage_rewards(self, stage_id):
+        stage_id = max(1, int(stage_id))
+        score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
+        money_bonus = ECONOMY_STAGE_REWARD_MONEY
+        return int(score_bonus), int(money_bonus)
+
+    def reset_game(self, change_state=True, start_stage=None):
+        previous_state = self.state
+        was_paused = self.paused
+    def _get_selected_skin_stats(self):
+        skin = CAR_SKINS[self.selected_skin]
+        return {
+            "speed_bonus": float(skin.get("speed_bonus", 0)),
+            "handling_bonus": float(skin.get("handling_bonus", 0)),
+        }
+
+    def _apply_vehicle_starting_stats(self):
+        if self.player is None:
+            return
+
+        stats = self._get_selected_skin_stats()
+
+        if hasattr(self.player, "velocity"):
+            self.player.velocity = float(const.PLAYER_SPEED_DEFAULT + stats["speed_bonus"])
+
+    def _get_unlocked_skin_indices(self):
+        unlocked = self.save_data.get("unlocked_skins", [0])
+        valid_indices = []
+
+        for index in unlocked:
+            try:
+                index = int(index)
+            except (TypeError, ValueError):
+                continue
+
+            if 0 <= index < len(CAR_SKINS) and index not in valid_indices:
+                valid_indices.append(index)
+
+        if 0 not in valid_indices:
+            valid_indices.insert(0, 0)
+
+        return valid_indices or [0]
+
+    def _refresh_profile_from_save(self):
+        self.save_data = load_save_data()
+        self.selected_skin = self.save_data.get("selected_skin", 0)
+        self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
+        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
+
+        if self.selected_difficulty not in DIFFICULTY_SETTINGS:
+            self.selected_difficulty = DEFAULT_DIFFICULTY
+
+        self.total_money = self.save_data.get("total_money", 0)
+        self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
+        self.games_played = self.save_data.get("games_played", 0)
+        self.total_score = self.save_data.get("total_score", 0)
+        self._sync_player_skin()
+
+    def _cycle_unlocked_skin(self, direction):
+        unlocked = self._get_unlocked_skin_indices()
+
+        if self.selected_skin not in unlocked:
+            self.selected_skin = unlocked[0]
+
+        current_pos = unlocked.index(self.selected_skin)
+        self.selected_skin = unlocked[(current_pos + direction) % len(unlocked)]
+
+        self._sync_player_skin()
+        self.save_preferences()
+        self.reset_game(change_state=False)
+
+    def register_garage_message(self, message, duration=1600):
+        self.garage_message = message
+        self.garage_message_until = pg.time.get_ticks() + duration
+
+    def get_checkpoint_stage(self):
+        try:
+            checkpoint_stage = int(self.stage)
+        except (TypeError, ValueError):
+            checkpoint_stage = DEFAULT_STAGE
+        return max(DEFAULT_STAGE, checkpoint_stage)
+
+    def has_checkpoint(self):
+        return self.get_checkpoint_stage() > DEFAULT_STAGE
+
+    def calculate_stage_rewards(self, stage_id):
+        stage_id = max(1, int(stage_id))
+        score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
+        money_bonus = ECONOMY_STAGE_REWARD_MONEY
+        return int(score_bonus), int(money_bonus)
+
+    def reset_game(self, change_state=True, start_stage=None):
+        previous_state = self.state
+        was_paused = self.paused
+        self._sync_player_skin()
+        if previous_state == GameState.GAME_OVER:
+            self._restore_money_after_game_over()
         self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
         self.obstacles = []
         self.coins = []
-        self.stage = DEFAULT_STAGE
-        self.level = DEFAULT_STAGE
+        self.nitro_pickups = []
+
+        # Determine starting stage:
+        # - If an explicit `start_stage` is provided, use it.
+        # - If not provided and we're resetting from GAME_OVER, resume from the
+        #   current `self.stage` so the player continues from the same level.
+        # - Otherwise fall back to DEFAULT_STAGE.
+        if start_stage is not None:
+            try:
+                starting_stage = int(start_stage)
+            except (TypeError, ValueError):
+                starting_stage = DEFAULT_STAGE
+        else:
+            if previous_state == GameState.GAME_OVER:
+                try:
+                    starting_stage = int(getattr(self, "stage", DEFAULT_STAGE))
+                except (TypeError, ValueError):
+                    starting_stage = DEFAULT_STAGE
+            else:
+                starting_stage = DEFAULT_STAGE
+
+        starting_stage = max(DEFAULT_STAGE, starting_stage)
+
+        self.stage = starting_stage
+        self.level = starting_stage
+
+        self._apply_level_one_wallet_floor(previous_state)
         self.score = 0
-        self.session_money = 0
+        self.current_level_money = 0
         self.is_new_high_score = False
 
         self.money_popup_amount = 0
@@ -258,8 +477,12 @@ class Game:
                 pass
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
+        self.load_stage_config(self.stage)
+        self.coin_frequency = self.get_coin_spawn_interval()
+        self.max_active_coins = self.get_max_active_coins()
         # reset stage progress tracking (do not reset `distance` which is runtime total)
         self.stage_progress_distance = 0.0
+        self._reset_stage_economy_counters()
         self.finish_sign = None
         self.completed_stage = None
         self.paused = False
@@ -275,6 +498,209 @@ class Game:
         if change_state:
             self.set_state(GameState.PLAYING)
 
+    def stop_nitro_boost(self, current_time=None, start_cooldown=True):
+        """Stop any active nitro effect; optionally start cooldown."""
+        if not getattr(self, "nitro_active", False):
+            return
+        try:
+            self.nitro_active = False
+            if start_cooldown:
+                now = int(current_time or pg.time.get_ticks())
+                # use configured cooldown if present, otherwise default 3000ms
+                self.nitro_cooldown_until = now + int(getattr(self, "NITRO_COOLDOWN_MS", 3000))
+        except Exception:
+            # be tolerant in tests and gameplay
+            pass
+
+    def _apply_level_one_wallet_floor(self, previous_state):
+        """Ensure a fresh Level 1 run starts with exactly 100 money."""
+        if self.stage == 1 and previous_state != GameState.GAME_OVER:
+            self.total_money = 100
+            self.save_data["total_money"] = 100
+            try:
+                from game.storage import save_save_data
+
+                save_save_data(self.save_data)
+            except Exception:
+                pass
+
+    def _restore_money_after_game_over(self):
+        self.save_data = load_save_data()
+        self.total_money = self.save_data.get("total_money", self.total_money)
+
+    def get_stage_distance_target(self, stage_id, cfg=None):
+        stage_id = max(1, int(stage_id))
+        base_target = 560
+        level_step = 280
+        computed_target = base_target + (stage_id - 1) * level_step
+
+        if isinstance(cfg, dict):
+            configured_target = cfg.get("distance_target", computed_target)
+            try:
+                configured_target = int(configured_target)
+            except (TypeError, ValueError):
+                configured_target = computed_target
+            return max(configured_target, computed_target)
+
+        return computed_target
+
+    def _reset_stage_economy_counters(self):
+        self.stage_coin_count = 0
+        self.stage_coin_money = 0
+        self.stage_distance_reward_money = 0
+        self.stage_reward_money = 0
+        self.stage_collision_penalty_money = 0
+        self.next_distance_reward_at = ECONOMY_DISTANCE_REWARD_STEP
+
+    def get_coin_spawn_interval(self):
+        cfg = getattr(self, "current_stage_config", {}) or {}
+        base_interval = COIN_SPAWN_BASE_INTERVAL.get(self.selected_difficulty, 1900)
+        stage_id = max(1, int(getattr(self, "stage", DEFAULT_STAGE)))
+        traffic_density = max(0.6, float(cfg.get("traffic_density", 1.0)))
+        stage_penalty = (stage_id - 1) * COIN_SPAWN_STAGE_STEP
+        interval = int((base_interval + stage_penalty) / traffic_density)
+        return max(COIN_SPAWN_MIN_INTERVAL, interval)
+
+    def get_max_active_coins(self):
+        diff = getattr(self, "selected_difficulty", DEFAULT_DIFFICULTY)
+        return int(COIN_MAX_ACTIVE.get(diff, 2))
+
+    def _choose_coin_lane_ratio(self):
+        lane = self._choose_spawn_lane()
+        ratio = (lane + 0.5) / 3
+        if lane == 1 and random.random() < 0.6:
+            ratio = max(0.34, min(0.66, 0.5 + random.uniform(-0.12, 0.12)))
+        return ratio
+
+    def get_coin_spawn_variant(self):
+        stage_id = max(1, int(getattr(self, "stage", 1)))
+        diff = getattr(self, "selected_difficulty", DEFAULT_DIFFICULTY)
+        chain_base = float(COIN_CHAIN_SPAWN_BASE_CHANCE.get(diff, 0.10))
+        red_base = float(COIN_RED_SPAWN_BASE_CHANCE.get(diff, 0.025))
+        stage_bonus = max(0, stage_id - 1)
+        chain_chance = min(COIN_CHAIN_SPAWN_MAX_CHANCE, chain_base + stage_bonus * COIN_CHAIN_SPAWN_STAGE_STEP)
+        red_chance = min(COIN_RED_SPAWN_MAX_CHANCE, red_base + stage_bonus * COIN_RED_SPAWN_STAGE_STEP)
+        roll = random.random()
+        if roll < red_chance:
+            return "red"
+        if roll < red_chance + chain_chance:
+            return "chain"
+        return "normal"
+
+    def get_coin_collision_rect(self, coin):
+        radius = max(1, int(getattr(coin, "radius", 12)))
+        return pg.Rect(int(coin.x - radius), int(coin.y - radius), radius * 2, radius * 2)
+
+    def can_spawn_coin_pickup(self, coin_pickups):
+        pickups = coin_pickups if isinstance(coin_pickups, (list, tuple)) else [coin_pickups]
+        if not pickups:
+            return False
+
+        for pickup in pickups:
+            new_rect = self.get_coin_collision_rect(pickup)
+            for obstacle in self.obstacles:
+                obstacle_rect = self.get_obstacle_rect(obstacle)
+                vertical_gap = max(getattr(obstacle, "height", 0), getattr(pickup, "radius", 12) * 2) + 88
+                if abs(getattr(obstacle, "y", 0) - pickup.y) < vertical_gap:
+                    if obstacle_rect.inflate(20, 28).colliderect(new_rect):
+                        return False
+        return True
+
+    def _create_coin_pickup(self, coin_y, coin_ratio, variant="normal"):
+        from .coin import Coin as CoinClass
+
+        c = CoinClass(self.road.get_travel_x(coin_y, coin_ratio, COIN_RADIUS * 2) + COIN_RADIUS, coin_y, variant=variant)
+        c.road_ratio = coin_ratio
+        return c
+
+    def spawn_coin_pickup(self, current_time, forced_variant=None):
+        if self.finish_sign is not None:
+            return
+        coin_capacity = self.get_max_active_coins() + COIN_CHAIN_LENGTH - 1
+        if len(self.coins) >= coin_capacity:
+            return
+        if current_time - self.last_coin_time <= self.coin_frequency:
+            return
+
+        variant = forced_variant or self.get_coin_spawn_variant()
+        available_slots = coin_capacity - len(self.coins)
+        if variant == "chain" and available_slots < COIN_CHAIN_LENGTH:
+            variant = "normal"
+        elif variant in {"red", "normal"} and available_slots < 1:
+            return
+
+        coin_ratio = self._choose_coin_lane_ratio()
+        if variant == "chain":
+            coin_line = [
+                self._create_coin_pickup(-50 - index * COIN_CHAIN_VERTICAL_SPACING, coin_ratio, variant="normal")
+                for index in range(COIN_CHAIN_LENGTH)
+            ]
+            if not self.can_spawn_coin_pickup(coin_line):
+                if available_slots < 1:
+                    return
+                variant = "normal"
+            else:
+                self.coins.extend(coin_line)
+                self.last_coin_time = current_time
+                return
+
+        coin_y = -50
+        coin_variant = "red" if variant == "red" else "normal"
+        new_coin = self._create_coin_pickup(coin_y, coin_ratio, variant=coin_variant)
+        if not self.can_spawn_coin_pickup(new_coin):
+            return
+        self.coins.append(new_coin)
+        self.last_coin_time = current_time
+
+    def collect_coin_pickup(self, coin, current_time):
+        coin_value = max(0, int(getattr(coin, "money_value", 0)))
+        self.stage_coin_count += 1
+        self.stage_coin_money += coin_value
+        self.current_level_money += coin_value
+        self.money_popup_amount = coin_value
+        self.money_popup_start_time = current_time
+        self.multiplier_display_time = current_time
+        self.multiplier_text_pos = (coin.x, coin.y)
+        self.consecutive_actions += 1
+        self.update_multiplier()
+        if self.coin_sound and not self.music_muted:
+            self.coin_sound.play()
+
+    def apply_distance_rewards(self, current_time):
+        step = max(1, int(ECONOMY_DISTANCE_REWARD_STEP))
+        reward_money = max(0, int(ECONOMY_DISTANCE_REWARD_MONEY))
+
+        while self.distance >= self.next_distance_reward_at:
+            self.stage_distance_reward_money += reward_money
+            self.current_level_money += reward_money
+            self.money_popup_amount = reward_money
+            self.money_popup_start_time = current_time
+            self.register_status_message(f"Distance bonus +{reward_money}", current_time, duration=900)
+            self.next_distance_reward_at += step
+
+    def calculate_collision_penalty(self, stage_id=None):
+        stage_id = max(1, int(self.stage if stage_id is None else stage_id))
+        return int(COLLISION_MONEY_PENALTY_BASE + (stage_id - 1) * COLLISION_MONEY_PENALTY_STAGE_STEP)
+
+    def should_apply_collision_penalty(self, obstacle):
+        return (
+            isinstance(obstacle, Car)
+            or getattr(obstacle, "kind", None) == "car"
+            or (isinstance(obstacle, Hazard) and getattr(obstacle, "damage_on_hit", False))
+        )
+
+    def apply_collision_penalty(self, current_time, stage_id=None):
+        penalty = max(0, self.calculate_collision_penalty(stage_id))
+        if penalty <= 0:
+            return 0
+
+        self.current_level_money -= penalty
+        self.stage_collision_penalty_money += penalty
+        self.money_popup_amount = -penalty
+        self.money_popup_start_time = current_time
+        self.register_status_message(f"Collision penalty -{penalty}", current_time, duration=900)
+        return penalty
+
     def load_stage_config(self, stage_id):
         # Load stage config from constants.STAGE_DEFINITIONS, fall back to scaling
         cfg = STAGE_DEFINITIONS.get(stage_id)
@@ -288,10 +714,12 @@ class Game:
             cfg["obstacle_frequency"] = max(700, int(base["obstacle_frequency"] - 80 * (stage_id - base["stage_id"])))
 
         self.current_stage_config = cfg
+        cfg["distance_target"] = self.get_stage_distance_target(stage_id, cfg)
         # apply runtime-influencing values conservatively
         try:
             self.obstacle_frequency = cfg.get("obstacle_frequency", self.obstacle_frequency)
             self.current_speed = self.base_speed * cfg.get("enemy_speed_multiplier", 1.0)
+            self.coin_frequency = self.get_coin_spawn_interval()
             # stage speed bonus applied per obstacle creation via get_stage_speed_bonus()
         except Exception:
             pass
@@ -300,7 +728,15 @@ class Game:
         self.reset_game(change_state=True)
         if self.current_music and not self.music_muted:
             pg.mixer.music.play(-1)
-
+    
+    def continue_from_checkpoint(self):
+        self.save_data = load_save_data()
+        checkpoint_stage = self.get_checkpoint_stage()
+        self.reset_game(change_state=True, start_stage=checkpoint_stage)
+        # Use a neutral message instead of showing the level number
+        self.register_status_message("Play again", pg.time.get_ticks(), duration=1600)
+        if self.current_music and not self.music_muted:
+            pg.mixer.music.play(-1)
     def open_high_scores(self):
         self.best_score = read_high_score()
         self.set_state(GameState.HIGH_SCORE)
@@ -309,13 +745,13 @@ class Game:
         previous_best_score = read_high_score()
         self.is_new_high_score = self.score > previous_best_score
 
-        # Persist progress including runtime distance; keep backward compatibility
-        # by passing distance explicitly so older save files remain compatible.
+        # Persist non-money progress only. Money stays at the last completed level.
         self.save_data = update_progress(
             score=self.score,
             stage=self.stage,
-            money_earned=self.session_money,
-            distance=int(self.distance),
+            money_earned=0,
+            distance=int(getattr(self, "distance", 0)),
+            persist_money=False,
         )
 
         self.best_score = self.save_data["high_score"]
@@ -372,6 +808,8 @@ class Game:
                 if event.key == pg.K_h and self.state == GameState.MENU:
                     self.open_high_scores()
                 if event.key == pg.K_r and (self.state == GameState.GAME_OVER or self.paused):
+                    # Restart: when in GAME_OVER this will resume the same stage
+                    # (reset_game uses previous_state to preserve stage on GAME_OVER).
                     self.reset_game()
                 if self.state == GameState.STAGE_COMPLETE and event.key in {pg.K_RETURN, pg.K_KP_ENTER, pg.K_SPACE}:
                     self.start_next_stage()
@@ -436,6 +874,7 @@ class Game:
         self.sync_game_over_button_rects()
 
         if self.game_over_restart_button.is_clicked(mouse_pos):
+            # Restart from the Game Over screen: resume the same stage.
             self.reset_game()
         if self.game_over_menu_button.is_clicked(mouse_pos):
             self.return_to_menu()
@@ -526,11 +965,26 @@ class Game:
             weights=list(track_weights.values()),
             k=1,
         )[0]
-        lane = random.randint(0, 2)
+        # Choose a spawn lane that is not overcrowded so obstacles appear
+        # across all lanes instead of leaving long empty spots.
+        lane = self._choose_spawn_lane()
         lane_ratio = (lane + 0.5) / 3
+        # If spawning in the center lane, occasionally offset slightly left/right
+        # so obstacles appear just off-center as well.
+        if lane == 1 and random.random() < 0.5:
+            lane_ratio = max(0.33, min(0.66, 0.5 + random.uniform(-0.16, 0.16)))
         min_speed, max_speed = diff_settings["obstacle_speed"]
         stage_speed_bonus = self.get_stage_speed_bonus()
         speed_multiplier = cfg.get("enemy_speed_multiplier", 1.0)
+
+        # More frequently spawn obstacles exactly at the extreme left/right
+        # so players can't permanently safe-spot at the absolute screen sides.
+        # 40% chance to spawn at an edge, placed at 0.0 (left) or 1.0 (right).
+        if random.random() < 0.40:
+            if random.choice([True, False]):
+                lane_ratio = 0.0
+            else:
+                lane_ratio = 1.0
 
         if obstacle_kind == "car":
             color = random.choice([(220, 60, 60), (60, 180, 60), (220, 140, 60), (180, 60, 180)])
@@ -549,6 +1003,58 @@ class Game:
         obstacle.road_ratio = lane_ratio
         obstacle.x = self.road.get_travel_x(0, lane_ratio, obstacle.width)
         return obstacle
+
+    def _choose_spawn_lane(self):
+        """Pick a lane index (0..2) preferring lanes with fewer obstacles.
+
+        This reduces the chance of long empty stretches where no obstacle
+        appears because a single lane is overcrowded.
+        """
+        # Small bias to spawn in the center lane more often to keep
+        # mid-screen traffic denser (helps avoid too-few middle obstacles).
+        if random.random() < 0.25:
+            return 1
+        # Count obstacles per lane (approximate by road_ratio)
+        counts = [0, 0, 0]
+        for ob in getattr(self, "obstacles", []):
+            if not hasattr(ob, "road_ratio"):
+                continue
+            try:
+                idx = int(min(2, max(0, math.floor(ob.road_ratio * 3))))
+            except Exception:
+                # fallback mapping
+                try:
+                    idx = int(min(2, max(0, int(ob.road_ratio * 3))))
+                except Exception:
+                    idx = 0
+            counts[idx] += 1
+
+        # Determine player's approximate lane (0..2) using screen thirds
+        player_lane = None
+        try:
+            px = int(self.player.x + getattr(self.player, "width", 0) / 2)
+            player_lane = int(min(2, max(0, px * 3 // max(1, WIDTH))))
+        except Exception:
+            player_lane = None
+
+        # With some probability, prefer spawning in/near the player's lane
+        if player_lane is not None and random.random() < 0.45:
+            # pick player's lane or one adjacent to it
+            choices = [player_lane]
+            if player_lane - 1 >= 0:
+                choices.append(player_lane - 1)
+            if player_lane + 1 <= 2:
+                choices.append(player_lane + 1)
+            return random.choice(choices)
+
+        # Otherwise prefer lanes with the minimum count
+        min_count = min(counts)
+        preferred = [i for i, c in enumerate(counts) if c == min_count]
+        if preferred:
+            return random.choice(preferred)
+
+        return random.randint(0, 2)
+
 
     def register_status_message(self, message, current_time, duration=1200):
         self.status_message = message
@@ -602,7 +1108,36 @@ class Game:
         self.clear_hazard_effects()
         if current_time is None:
             current_time = pg.time.get_ticks()
-        self.register_status_message(f"Level {self.stage} complete", current_time, duration=1200)
+
+        self.stop_nitro_boost(current_time, start_cooldown=False)
+
+        self.last_stage_score_bonus, self.last_stage_money_bonus = self.calculate_stage_rewards(self.stage)
+        self.last_stage_bonus_total = self.last_stage_score_bonus + self.last_stage_money_bonus
+        self.score += self.last_stage_score_bonus
+        self.current_level_money += self.last_stage_money_bonus
+        self.stage_reward_money = self.last_stage_money_bonus
+        self.money_popup_amount = self.last_stage_money_bonus
+        self.money_popup_start_time = current_time
+
+        self.save_data = update_progress(
+            score=self.score,
+            stage=self.stage,
+            money_earned=self.current_level_money,
+            distance=int(getattr(self, "distance", 0)),
+            persist_money=True,
+        )
+        self.total_money = self.save_data["total_money"]
+        self.best_score = self.save_data["high_score"]
+        self.best_stage = self.save_data["best_stage"]
+        self.games_played = self.save_data["games_played"]
+        self.total_score = self.save_data["total_score"]
+        self.current_level_money = 0
+
+        self.register_status_message(
+            f"Level {self.stage} complete: +{self.last_stage_score_bonus} score, +{self.last_stage_money_bonus} money",
+            current_time,
+            duration=1800,
+        )
         self.set_state(GameState.STAGE_COMPLETE)
         # initialize map-style transition animation
         try:
@@ -618,12 +1153,24 @@ class Game:
         # Each new stage starts with a fresh 3-life budget.
         self.lives = PLAYER_START_LIVES
         self.stage_progress_distance = 0.0
+        self._reset_stage_economy_counters()
         self.finish_sign = None
         self.completed_stage = None
         self.obstacles = []
         self.coins = []
         self.clear_hazard_effects()
         self.load_stage_config(self.stage)
+        self.coin_frequency = self.get_coin_spawn_interval()
+        self.max_active_coins = self.get_max_active_coins()
+        try:
+            self.weather.update_for_stage(
+                stage=self.stage,
+                progress_ratio=0.0,
+                selected_difficulty=self.selected_difficulty,
+                current_time=pg.time.get_ticks(),
+            )
+        except Exception:
+            pass
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
         self.paused = False
@@ -712,8 +1259,13 @@ class Game:
             vel = float(self.player.get_velocity())
             # dt is seconds since last frame
             self.distance += vel * dt
-            # also track stage-specific progress separately
-            self.stage_progress_distance += vel * dt
+            # only advance stage progress if the player is actually moving
+            # forward above a small threshold — this prevents the level from
+            # completing when the car is effectively stationary.
+            player_speed_frac = self.get_player_speed_fraction()
+            MIN_VEL_FOR_STAGE = 1.5
+            if vel >= MIN_VEL_FOR_STAGE and player_speed_frac > 0.05:
+                self.stage_progress_distance += vel * dt
         except Exception:
             pass
         self.update_player_bounds()
@@ -722,7 +1274,15 @@ class Game:
         speed_factor = max(self.current_speed / BASE_SPEED, 1)
 
         stage_density = max(0.55, getattr(self, "current_stage_config", {}).get("traffic_density", 1.0))
-        effective_obstacle_interval = (self.obstacle_frequency / stage_density) / speed_factor
+        # If the player is mostly stationary, increase spawn rate so obstacles
+        # still appear across the screen and prevent safe camping at edges.
+        try:
+            player_speed_frac = self.get_player_speed_fraction()
+        except Exception:
+            player_speed_frac = 1.0
+
+        spawn_bias = 0.6 if player_speed_frac < 0.25 else 1.0
+        effective_obstacle_interval = (self.obstacle_frequency / stage_density) / (speed_factor * spawn_bias)
 
         if self.finish_sign is None and current_time - self.last_obstacle_time > effective_obstacle_interval:
             new_obstacle = self.create_track_obstacle(diff_settings)
@@ -753,6 +1313,15 @@ class Game:
                 self.lives -= 1
                 self.last_damage_time = current_time
                 self.damage_flash_time = current_time
+                if self.damage_sound and not self.music_muted:
+                    self.damage_sound.play()
+                if getattr(self, "nitro_active", False):
+                    try:
+                        self.stop_nitro_boost(current_time, start_cooldown=True)
+                    except Exception:
+                        pass
+                if self.should_apply_collision_penalty(obstacle):
+                    self.apply_collision_penalty(current_time, self.stage)
                 if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
                     self.register_status_message("Barrier impact: heavy damage", current_time)
                 else:
@@ -772,45 +1341,42 @@ class Game:
                 if player_rect.colliderect(self.finish_sign.get_collision_rect()):
                     self.enter_stage_complete(current_time)
 
-        if self.finish_sign is None and current_time - self.last_coin_time > self.coin_frequency:
-            coin_ratio = random.uniform(0.08, 0.92)
-            new_coin = Coin(self.road.get_travel_x(0, coin_ratio, 24) + 12, -50)
-            new_coin.road_ratio = coin_ratio
-            self.coins.append(new_coin)
-            self.last_coin_time = current_time
+        if self.finish_sign is None:
+            self.spawn_coin_pickup(current_time)
 
         for coin in self.coins[:]:
             if coin.move():
                 self.coins.remove(coin)
                 continue
             self.align_coin_to_road(coin)
-            # Use circle-rect collision test so fast passes still register.
-            rect = pg.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
-            nearest_x = max(rect.left, min(coin.x, rect.right))
-            nearest_y = max(rect.top, min(coin.y, rect.bottom))
-            dx = coin.x - nearest_x
-            dy = coin.y - nearest_y
-            # small tolerance so high-speed passes are captured
-            tol = 6
-            if dx * dx + dy * dy <= (coin.radius + tol) ** 2:
-                coin.grow()
+            if self.circle_hits_player(coin.x, coin.y, coin.radius):
                 self.coins.remove(coin)
-                if self.coin_sound and not self.music_muted:
-                    self.coin_sound.play()
-                self.consecutive_actions += 1
-                self.update_multiplier()
+                self.collect_coin_pickup(coin, current_time)
 
                 self.score += int(coin.score_value * self.score_multiplier)
-                self.session_money += coin.money_value
-
-                self.money_popup_amount = coin.money_value
-                self.money_popup_start_time = pg.time.get_ticks()
-
-                self.multiplier_display_time = pg.time.get_ticks()
-                self.multiplier_text_pos = (coin.x, coin.y)
                 self.update_stage_progression()
+        self.apply_distance_rewards(current_time)
 
-        if current_time - self.multiplier_timer > 3000:
+        for pickup in list(getattr(self, "nitro_pickups", [])):
+            if pickup.move(speed_multiplier=getattr(self, "motion_multiplier", 1.0)):
+                try:
+                    self.nitro_pickups.remove(pickup)
+                except Exception:
+                    pass
+                continue
+            try:
+                self.align_nitro_to_road(pickup)
+            except Exception:
+                pass
+            if self.circle_hits_player(pickup.x, pickup.y, pickup.radius, tolerance=4):
+                try:
+                    self.collect_nitro_pickup(pickup, current_time)
+                except Exception:
+                    pass
+                try:
+                    self.nitro_pickups.remove(pickup)
+                except Exception:
+                    pass
             if self.score_multiplier > 1.0:
                 self.consecutive_actions = max(0, self.consecutive_actions - 1)
                 self.update_multiplier()
@@ -970,7 +1536,9 @@ class Game:
         button_spacing = 60
         button_size = (200, 45)
 
-        self.game_over_restart_button.rect.topleft = (WIDTH // 2 - 100, button_y_start)
+        restart_y = HEIGHT // 2 + 28
+
+        self.game_over_restart_button.rect.topleft = (WIDTH // 2 - 100, restart_y)
         self.game_over_restart_button.rect.size = button_size
         self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing)
         self.game_over_menu_button.rect.size = button_size
@@ -1155,14 +1723,75 @@ class Game:
 
             pg.draw.polygon(self.screen, RED, heart_points)
             pg.draw.polygon(self.screen, WHITE, heart_points, 1)
+        weather_lines = []
+        try:
+            road_type, safe_speed, high_risk_speed = self.weather.get_active_speed_limits(self.selected_difficulty)
+        except Exception:
+            road_type, safe_speed, high_risk_speed = None, None, None
 
+        if road_type and safe_speed is not None and high_risk_speed is not None:
+            weather_lines.append(f"{road_type} Safe: {safe_speed:.0f}  Risk: {high_risk_speed:.0f} km/h")
+
+        try:
+            fog_intensity = float(self.weather.weather_intensity.get("fog", 0.0))
+        except Exception:
+            fog_intensity = 0.0
+
+        if ("fog" in getattr(self.weather, "active_weather", [])) or (fog_intensity > 0.05):
+            fog_trigger = self.weather.get_fog_speed_trigger(self.selected_difficulty)
+            weather_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
+
+        active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
+        visible_status_count = max(1, min(3, len(active_statuses)))
+        legend_card_width = 188
+
+        dynamic_texts = [
+            f"Score: {self.score}",
+            f"Level: {self.stage}",
+            f"Speed: {speed_val:.1f} km/h",
+            f"Distance: {int(self.distance)} m",
+            f"Mode: {self.selected_difficulty}",
+            f"Vehicle: {CAR_SKINS[self.selected_skin]['name']}",
+            f"Money: {self.total_money + (self.current_level_money if self.state != GameState.GAME_OVER else 0)}",
+            f"Multiplier: x{self.score_multiplier:.1f}",
+            "Track Watch",
+            "Active",
+        ]
+        if finish_line:
+            dynamic_texts.append(finish_line)
+        dynamic_texts.extend(weather_lines[:2])
+
+        max_text_width = 0
+        for text in dynamic_texts:
+            width = self.tiny_font.size(text)[0]
+            if width > max_text_width:
+                max_text_width = width
+
+        hud_width = max(236, max_text_width + 56, legend_card_width + 48)
+        status_rows_bottom = 440 + (visible_status_count - 1) * 16 + 18
+        hud_height = max(448, status_rows_bottom + 18)
+
+        hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
+        hud_bg.fill((10, 14, 22, 208))
+        pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
+
+        for index in range(hud_height):
+            alpha = int(30 * (1 - index / hud_height))
+            pg.draw.line(hud_bg, (38, 164, 184, alpha), (0, index), (hud_width, index))
+
+        self.screen.blit(hud_bg, (10, 10))
+
+        for idx, line in enumerate(weather_lines[:2]):
+            info = self.tiny_font.render(line, True, CYAN)
+            self.screen.blit(info, (24, 176 + idx * 16))
+        
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (24, 200))
 
         display_money = self.total_money
 
         if self.state != GameState.GAME_OVER:
-            display_money += self.session_money
+            display_money = max(0, display_money + self.current_level_money)
 
 
 
@@ -1181,8 +1810,9 @@ class Game:
             popup_y = 220 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
+            popup_sign = "+" if self.money_popup_amount >= 0 else "-"
             popup_text = self.small_font.render(
-                f"+{self.money_popup_amount}",
+                f"{popup_sign}{abs(self.money_popup_amount)}",
                 True,
                 GOLD,
             )
@@ -1263,13 +1893,70 @@ class Game:
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
                 self.screen.blit(badge, (24, 398 + index * 16))
-        else:
-            badge = pg.Surface((188, 18), pg.SRCALPHA)
-            badge.fill((255, 255, 255, 10))
-            pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
-            status_text = self.tiny_font.render("Road stable", True, GREEN)
-            badge.blit(status_text, (8, 2))
-            self.screen.blit(badge, (24, 398))
+            else:
+                badge = pg.Surface((188, 18), pg.SRCALPHA)
+                badge.fill((255, 255, 255, 10))
+                pg.draw.rect(badge, (*GREEN, 90), (0, 0, 188, 18), 1, border_radius=8)
+                status_text = self.tiny_font.render("Road stable", True, GREEN)
+                badge.blit(status_text, (8, 2))
+                self.screen.blit(badge, (24, 440))
+
+        def draw_top_right_hud(self):
+            panel_width = 226
+            panel_height = 132
+            panel_x = WIDTH - panel_width - 14
+            panel_y = 12
+
+            self.pause_button.rect.topleft = (panel_x + 122, panel_y + 10)
+            self.pause_button.rect.size = (92, 30)
+            self.sound_button.rect.topleft = (panel_x + 122, panel_y + 48)
+            self.sound_button.rect.size = (92, 30)
+
+            panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
+            panel.fill((8, 14, 24, 220))
+            pg.draw.rect(panel, (255, 255, 255, 42), (0, 0, panel_width, panel_height), 2, border_radius=16)
+
+            speed_text = self.tiny_font.render(f"Speed {self.display_speed:.1f} km/h", True, WHITE)
+            panel.blit(speed_text, (14, 14))
+
+            current_money = max(0, self.total_money + self.current_level_money)
+            money_text = self.tiny_font.render(f"Money {current_money}", True, GOLD)
+            panel.blit(money_text, (14, 34))
+
+            label = self.tiny_font.render("Nitro", True, (175, 235, 255))
+            panel.blit(label, (14, 58))
+
+            bar_rect = pg.Rect(14, 80, 96, 15)
+            pg.draw.rect(panel, (24, 34, 48), bar_rect, border_radius=7)
+            fill_width = int(bar_rect.width * (self.nitro_charge / max(1.0, NITRO_MAX_CHARGE)))
+            if fill_width > 0:
+                fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
+                bar_color = (64, 220, 255) if not getattr(self, "nitro_active", False) else (255, 170, 72)
+                pg.draw.rect(panel, bar_color, fill_rect, border_radius=7)
+            pg.draw.rect(panel, (210, 245, 255), bar_rect, 2, border_radius=7)
+
+            if getattr(self, "nitro_active", False):
+                status = "Boost active"
+                status_color = (255, 190, 92)
+            elif pg.time.get_ticks() < getattr(self, "nitro_cooldown_until", 0):
+                remaining = max(0.0, (getattr(self, "nitro_cooldown_until", 0) - pg.time.get_ticks()) / 1000.0)
+                status = f"Cooldown {remaining:.1f}s"
+                status_color = YELLOW
+            elif getattr(self, "nitro_charge", 0) >= getattr(self, "NITRO_MIN_ACTIVATION", 0):
+                status = "SPACE / SHIFT"
+                status_color = GREEN
+            else:
+                status = "Collect nitro"
+                status_color = GRAY
+
+            status_text = self.tiny_font.render(status, True, status_color)
+            charge_text = self.tiny_font.render(f"{int(getattr(self, "nitro_charge", 0))}%", True, WHITE)
+            panel.blit(status_text, (14, 104))
+            panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 104))
+
+            self.screen.blit(panel, (panel_x, panel_y))
+            self.pause_button.draw(self.screen, self.tiny_font)
+            self.sound_button.draw(self.screen, self.tiny_font)
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -1386,10 +2073,19 @@ class Game:
         overlay.fill((0, 0, 0, 200))
         self.screen.blit(overlay, (0, 0))
 
-        box = pg.Surface((450, 380), pg.SRCALPHA)
-        box.fill((20, 20, 30, 240))
-        pg.draw.rect(box, (255, 0, 0, 80), (0, 0, 450, 380), 3, border_radius=15)
-        self.screen.blit(box, (WIDTH // 2 - 225, HEIGHT // 2 - 190))
+        
+        checkpoint_stage = self.get_checkpoint_stage()
+
+        box_width = 470
+        box_height = 400
+        box_left = WIDTH // 2 - box_width // 2
+        box_top = HEIGHT // 2 - box_height // 2
+
+        box = pg.Surface((box_width, box_height), pg.SRCALPHA)
+        box.fill((18, 18, 30, 248))
+        pg.draw.rect(box, (255, 45, 45, 115), (0, 0, box_width, box_height), 3, border_radius=18)
+        pg.draw.rect(box, (255, 255, 255, 25), (12, 12, box_width - 24, box_height - 24), 1, border_radius=14)
+        self.screen.blit(box, (box_left, box_top))
 
         title = self.font.render("GAME OVER", True, RED)
         self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 170))
@@ -1400,15 +2096,22 @@ class Game:
         stage = self.small_font.render(f"Reached Level: {self.stage}", True, CYAN)
         self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 90))
 
-        money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
-        self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, HEIGHT // 2 - 65))
+        
+        money_sign = "+" if self.current_level_money >= 0 else "-"
+        money = self.small_font.render(f"Money Earned: {money_sign}{abs(self.current_level_money)}", True, GOLD)
+        self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, box_top + 148))
 
         if self.is_new_high_score:
             high_score = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
             self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, HEIGHT // 2 - 35))
 
-        hint = self.tiny_font.render("Press R to restart or use the buttons below.", True, GRAY)
-        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT // 2 + 5))
+        # Inform the player how Restart behaves: it will resume the same level.
+        hint = self.tiny_font.render("Press R to restart (resumes current level).", True, GRAY)
+        try:
+            info_y = box_top + 6
+        except Exception:
+            info_y = HEIGHT // 2 + 6
+        self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 6))
 
         self.game_over_restart_button.draw(self.screen, self.small_font)
         self.game_over_menu_button.draw(self.screen, self.small_font)
@@ -1423,7 +2126,7 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
         # card
-        card_w, card_h = 760, 360
+        card_w, card_h = 760, 470
         card = pg.Surface((card_w, card_h), pg.SRCALPHA)
         card.fill((14, 18, 24, 230))
         pg.draw.rect(card, (255, 255, 255, 28), (6, 6, card_w - 12, card_h - 12), 2, border_radius=20)
@@ -1433,9 +2136,48 @@ class Game:
         subtitle = self.small_font.render(f"Level {self.completed_stage or self.stage} finished — next: Level { (self.completed_stage or self.stage) + 1 }", True, WHITE)
         card.blit(subtitle, (34, 74))
 
+        reward_panel = pg.Surface((card_w - 68, 86), pg.SRCALPHA)
+        reward_panel.fill((255, 255, 255, 12))
+        pg.draw.rect(reward_panel, (255, 214, 90, 90), reward_panel.get_rect(), 2, border_radius=14)
+
+        reward_title = self.tiny_font.render("Stage Rewards", True, GOLD)
+        coin_text = self.tiny_font.render(
+            f"Coins: {self.stage_coin_count} picked up (+{self.stage_coin_money} money)",
+            True,
+            WHITE,
+        )
+        distance_text = self.tiny_font.render(
+            f"Distance Reward: +{self.stage_distance_reward_money}",
+            True,
+            CYAN,
+        )
+        stage_text = self.tiny_font.render(
+            f"Stage Reward: +{self.stage_reward_money}",
+            True,
+            GREEN,
+        )
+        score_text = self.tiny_font.render(
+            f"Score Bonus: +{self.last_stage_score_bonus}",
+            True,
+            WHITE,
+        )
+        checkpoint_note = self.tiny_font.render(
+            f"Checkpoint unlocked: Level {(self.completed_stage or self.stage) + 1}",
+            True,
+            CYAN,
+        )
+
+        reward_panel.blit(reward_title, (18, 7))
+        reward_panel.blit(coin_text, (170, 7))
+        reward_panel.blit(distance_text, (18, 31))
+        reward_panel.blit(stage_text, (260, 31))
+        reward_panel.blit(score_text, (460, 31))
+        reward_panel.blit(checkpoint_note, (18, 55))
+        card.blit(reward_panel, (34, 104))
+        
         # map area
-        map_x, map_y = 34, 120
-        map_w, map_h = card_w - 68, 200
+        map_x, map_y = 34, 200
+        map_w, map_h = card_w - 68, 190
         map_rect = pg.Rect(map_x, map_y, map_w, map_h)
         # subtle panel
         panel = pg.Surface((map_w, map_h), pg.SRCALPHA)
