@@ -93,7 +93,7 @@ Racing-car-game/
 
 </div>
 
-## 🛠️ Building Executables
+## 🛠️ Building Executable
 Windows:
 ```bash
 pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
@@ -163,7 +163,7 @@ pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
   <em>Thank you for your valuable contributions to this project! 🙏</em>
 </p>
 <p align="center">
-Thanks to everyone who contributed with pull requests, bug reports, and suggestions!
+Thanks to everyone who contributed with pull requests, bug reports and suggestions!
 </p>
 
 ---
