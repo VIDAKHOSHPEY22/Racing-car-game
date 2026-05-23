@@ -118,7 +118,7 @@ def write_high_score(score):
     return save_save_data(save_data)["high_score"]
 
 
-def update_progress(score, stage, money_earned, distance=None):
+def update_progress(score, stage, money_earned=0, distance=None, persist_money=True):
     """Update persistent progress. Optionally pass `distance` to update best_distance.
 
     Backwards compatible: callers that don't pass `distance` continue to work.
@@ -127,11 +127,12 @@ def update_progress(score, stage, money_earned, distance=None):
 
     score = max(0, _coerce_int(score, 0))
     stage = max(1, _coerce_int(stage, 1))
-    money_earned = max(0, _coerce_int(money_earned, 0))
+    money_earned = _coerce_int(money_earned, 0)
 
     save_data["high_score"] = max(save_data["high_score"], score)
     save_data["best_stage"] = max(save_data["best_stage"], stage)
-    save_data["total_money"] += money_earned
+    if persist_money:
+        save_data["total_money"] = max(0, save_data["total_money"] + money_earned)
     save_data["total_score"] += score
     save_data["games_played"] += 1
 
