@@ -170,7 +170,7 @@ class Game:
         if self.selected_difficulty not in DIFFICULTY_SETTINGS:
             self.selected_difficulty = DEFAULT_DIFFICULTY
 
-        self.total_money = self.save_data.get("total_money", 0)
+        self.total_money = self.save_data.get("total_money", 100)
         self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
         self.games_played = self.save_data.get("games_played", 0)
         self.total_score = self.save_data.get("total_score", 0)
@@ -393,7 +393,7 @@ class Game:
         if self.selected_difficulty not in DIFFICULTY_SETTINGS:
             self.selected_difficulty = DEFAULT_DIFFICULTY
 
-        self.total_money = self.save_data.get("total_money", 0)
+        self.total_money = self.save_data.get("total_money", 100)
         self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
         self.games_played = self.save_data.get("games_played", 0)
         self.total_score = self.save_data.get("total_score", 0)
@@ -429,7 +429,7 @@ class Game:
     def calculate_stage_rewards(self, stage_id):
         stage_id = max(1, int(stage_id))
         score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
-        money_bonus = const.STAGE_CLEAR_MONEY_BONUS + stage_id * const.STAGE_LEVEL_MONEY_MULTIPLIER
+        money_bonus = int(const.ECONOMY_STAGE_REWARD_MONEY)
         return int(score_bonus), int(money_bonus)
 
     def reset_game(self, change_state=True, start_stage=None):
@@ -551,6 +551,8 @@ class Game:
 
     def start_game(self):
         self.reset_game(change_state=True)
+        if self.stage == 1:
+            self.total_money = 100
         if self.current_music and not self.music_muted:
             pg.mixer.music.play(-1)
 
@@ -2519,4 +2521,5 @@ if __name__ == "__main__":
         pg.init()
         pg.mixer.init()
         Game().run()
+
 

@@ -82,6 +82,9 @@ def _normalize_save_data(data):
     if normalized.get("selected_difficulty") not in {"Easy", "Medium", "Hard"}:
         normalized["selected_difficulty"] = DEFAULT_DIFFICULTY
 
+    if normalized.get("games_played", 0) == 0 and normalized.get("total_money", 0) <= 0:
+        normalized["total_money"] = 100
+
     return normalized
 
 
@@ -198,3 +201,6 @@ def select_skin(skin_index):
     save_data["selected_skin"] = skin_index
     save_save_data(save_data)
     return True, f"{CAR_SKINS[skin_index]['name']} selected."
+
+
+
