@@ -1,0 +1,16 @@
+name: I would like to contribute!
+description: Let me know you're working on something before you open a PR
+labels: "contribution"
+assignees: "TheM1ddleM1n"
+body:
+  - type: input
+    attributes:
+      label: What are you adding?
+      description: TheM1ddleM1n cannot mind read so tell him a short description of what you add/remove.
+      placeholder: New Images for cars to look realistic 
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Anything else?
+      description: Optional notes, questions, or a draft of your idea.
