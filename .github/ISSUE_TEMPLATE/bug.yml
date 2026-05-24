@@ -15,9 +15,9 @@ body:
       label: Steps to Reproduce
       description: How do we make the bug happen?
       placeholder: |
-        1. Ran atari.py in my terminal (cmd)
-        2. Saw the pygame window pop up
-        3. Game couldn't run because of error
+        1. Ran atari.py in my terminal (via cmd terminal)
+        2. Saw the Pygame window pop up
+        3. Game couldn't run because of an error
     validations:
       required: true
   - type: textarea
