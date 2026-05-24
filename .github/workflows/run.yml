@@ -1,4 +1,4 @@
-name: Run Python Game
+name: Execute atari.py
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
+      - name: Ruff Installation
         run: pip install ruff
 
       - name: Lint
@@ -35,7 +35,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Python Setup
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
