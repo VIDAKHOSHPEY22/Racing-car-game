@@ -13,7 +13,6 @@ from .constants import (
     FRICTION,
     BRAKE_DECEL,
     BASE_SPEED,
-    BLACK,
     DAMAGE_COOLDOWN,
     CAR_SKINS,
     CYAN,
@@ -47,33 +46,22 @@ from .constants import (
     MENU_CARD_HEIGHT,
     MENU_CARD_WIDTH,
     NAVY,
-    NITRO_BOOST_ACCEL,
-    NITRO_COOLDOWN_MS,
-    NITRO_DRAIN_PER_SECOND,
-    NITRO_MAX_CHARGE,
-    NITRO_MAX_SPEED_BONUS,
-    NITRO_MIN_ACTIVATION,
-    NITRO_SPAWN_INTERVAL,
-    NITRO_WORLD_SPEED_MULTIPLIER,
+      STAGE_DEFINITIONS,
     TRACK_OBJECT_WEIGHTS,
     PLAYER_START_LIVES,
     RED,
     SLATE,
     SURFACE,
     SURFACE_ALT,
+        NITRO_MAX_CHARGE,
     TEAL,
     WHITE,
     WIDTH,
     YELLOW,
     OBSTACLE_PASS_SCORE,
 )
-<<<<<<< HEAD
-=======
-from .constants import STAGE_DEFINITIONS
-from .game_state import GameState
-from .nitro import NitroPickup
-# FinishLine moved here from game/finish_line.py to keep repository structure flat.
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
+from . import constants as const
+
 class FinishLine:
     def __init__(self, road, stage_id, speed):
         self.road = road
@@ -85,8 +73,8 @@ class FinishLine:
         self.road_ratio = 0.5
         self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
 
-    def move(self, speed_multiplier=1.0):
-        self.y += self.speed * speed_multiplier
+    def move(self):
+        self.y += self.speed
         self.x = self.road.get_travel_x(self.y + self.height // 2, self.road_ratio, self.width)
         return self.y > HEIGHT + self.height
 
@@ -101,83 +89,72 @@ class FinishLine:
         except Exception:
             pass
 
-        center_x = self.x + self.width // 2
-        banner_y = int(self.y + 12)
-        line_y = int(self.y + 54)
-
-        shadow = pg.Surface((self.width + 42, self.height + 26), pg.SRCALPHA)
-        pg.draw.ellipse(shadow, (0, 0, 0, 75), (12, self.height - 8, self.width + 18, 16))
-        screen.blit(shadow, (self.x - 22, self.y - 4))
-
-        pole_color = (86, 88, 98)
-        pole_highlight = (150, 152, 162)
+        pole_color = (88, 88, 94)
+        accent_color = (255, 245, 225)
         flag_color = RED if self.stage_id % 2 == 0 else YELLOW
-        for pole_x, flag_dir in [(self.x + 12, 1), (self.x + self.width - 20, -1)]:
-            pg.draw.rect(screen, pole_color, (pole_x, self.y + 6, 8, self.height + 6), border_radius=4)
-            pg.draw.line(screen, pole_highlight, (pole_x + 2, self.y + 8), (pole_x + 2, self.y + self.height), 1)
-            flag_points = [
-                (pole_x + 4, self.y + 8),
-                (pole_x + 4 + flag_dir * 34, self.y + 18),
-                (pole_x + 4, self.y + 30),
-            ]
-            pg.draw.polygon(screen, flag_color, flag_points)
-            pg.draw.polygon(screen, WHITE, flag_points, 1)
 
-        banner_rect = pg.Rect(self.x + 20, banner_y, self.width - 40, 34)
-        pg.draw.rect(screen, (12, 14, 22), banner_rect, border_radius=12)
-        pg.draw.rect(screen, GOLD, banner_rect, 2, border_radius=12)
+        shadow = pg.Surface((self.width + 24, self.height + 18), pg.SRCALPHA)
+        pg.draw.ellipse(shadow, (0, 0, 0, 55), (6, self.height - 6, self.width, 12))
+        screen.blit(shadow, (self.x - 12, self.y - 2))
 
-        title = pg.font.Font(None, 34).render("FINISH", True, WHITE)
-        title_shadow = pg.font.Font(None, 34).render("FINISH", True, (0, 0, 0))
-        screen.blit(title_shadow, title_shadow.get_rect(center=(banner_rect.centerx + 2, banner_rect.centery + 2)))
-        screen.blit(title, title.get_rect(center=banner_rect.center))
+        for pole_x in (self.x + 14, self.x + self.width - 20):
+            pg.draw.rect(screen, pole_color, (pole_x, self.y + 8, 8, self.height - 4), border_radius=3)
+            pg.draw.circle(screen, (135, 135, 142), (pole_x + 4, self.y + self.height - 4), 4)
 
-        strip_rect = pg.Rect(self.x + 6, line_y, self.width - 12, 28)
-        pg.draw.rect(screen, (18, 18, 22), strip_rect, border_radius=6)
-        square = 14
-        cols = max(1, strip_rect.width // square)
-        rows = 2
-        for row in range(rows):
-            for col in range(cols):
-                color = WHITE if (row + col) % 2 == 0 else BLACK
-                cell = pg.Rect(strip_rect.x + col * square, strip_rect.y + row * square, square, square)
-                pg.draw.rect(screen, color, cell)
-        pg.draw.rect(screen, GOLD, strip_rect, 2, border_radius=6)
+        banner_rect = pg.Rect(self.x + 12, self.y + 10, self.width - 24, 26)
+        pg.draw.rect(screen, (22, 22, 26), banner_rect, border_radius=10)
+        pg.draw.rect(screen, accent_color, banner_rect, 2, border_radius=10)
 
-        tag_bg = pg.Rect(center_x - 46, self.y + 84, 92, 24)
-        pg.draw.rect(screen, (12, 14, 22), tag_bg, border_radius=8)
-        pg.draw.rect(screen, (255, 255, 255, 70), tag_bg, 1, border_radius=8)
-        tag = pg.font.Font(None, 23).render(f"Level {self.stage_id}", True, GOLD)
-        screen.blit(tag, tag.get_rect(center=tag_bg.center))
+        for idx in range(8):
+            stripe_x = banner_rect.x + 6 + idx * 20
+            stripe_rect = pg.Rect(stripe_x, banner_rect.y + 4, 12, banner_rect.height - 8)
+            pg.draw.rect(screen, flag_color, stripe_rect, border_radius=3)
+            pg.draw.line(screen, WHITE, stripe_rect.topleft, stripe_rect.bottomright, 1)
+
+        text = pg.font.Font(None, 34).render("FINISH", True, WHITE)
+        screen.blit(text, text.get_rect(center=banner_rect.center))
+
+        tag = pg.font.Font(None, 24).render(f"Level {self.stage_id}", True, accent_color)
+        screen.blit(tag, tag.get_rect(center=(self.x + self.width // 2, self.y + 58)))
 from .hazard import Hazard
 from .music_utils import create_coin_sound, create_damage_sound, load_music
 from .road import Road
 from .storage import (
-    buy_skin,
     load_save_data,
     read_high_score,
-    select_skin,
     update_progress,
     save_player_preferences,
 )
 from . import constants as const
-<<<<<<< HEAD
 from .game_state import GameState
-
-=======
 from .weather import WeatherManager
->>>>>>> 3df94ff (Add dynamic weather system with visual and driving effects)
+
+
+class _FallbackWeather:
+    def __init__(self):
+        self.active_weather = []
+        self.weather_intensity = {}
+
+    def update_for_stage(self, *args, **kwargs):
+        return None
+
+    def get_active_speed_limits(self, selected_difficulty):
+        return None, None, None
+
+    def get_fog_speed_trigger(self, selected_difficulty):
+        return 0
+
 
 class Game:
+    def _create_display(self):
+        flags = pg.FULLSCREEN | pg.SCALED
+        try:
+            return pg.display.set_mode((WIDTH, HEIGHT), flags)
+        except Exception:
+            return pg.display.set_mode((WIDTH, HEIGHT))
+
     def __init__(self):
-        self.logical_size = (WIDTH, HEIGHT)
-        self.screen = pg.Surface(self.logical_size)
-        self.display_surface = None
-        self.viewport = pg.Rect(0, 0, WIDTH, HEIGHT)
-        self.display_scale = 1.0
-        self.source_view_rect = pg.Rect(0, 0, WIDTH, HEIGHT)
-        self.fullscreen = True
-        self._configure_display(fullscreen=os.environ.get("SDL_VIDEODRIVER", "").lower() != "dummy")
+        self.screen = self._create_display()
         pg.display.set_caption("Sleek Street Racer")
         self.clock = pg.time.Clock()
         self.font = pg.font.Font(None, 42)
@@ -191,7 +168,7 @@ class Game:
         self.save_data = load_save_data()
         self.selected_skin = self.save_data.get("selected_skin", 0)
         self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
-        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
+        self.selected_difficulty = DEFAULT_DIFFICULTY
 
         if self.selected_difficulty not in DIFFICULTY_SETTINGS:
             self.selected_difficulty = DEFAULT_DIFFICULTY
@@ -205,6 +182,22 @@ class Game:
 
         self.stage = DEFAULT_STAGE
         self.level = DEFAULT_STAGE
+        # Ensure fresh games starting at Level 1 begin with a predictable
+        # wallet, but do not overwrite an existing saved wallet.
+        try:
+            if int(self.stage) == DEFAULT_STAGE:
+                existing = int(self.save_data.get("total_money", 0))
+                if existing <= 0:
+                    self.total_money = 100
+                    self.save_data["total_money"] = 100
+                    try:
+                        from .storage import save_save_data
+
+                        save_save_data(self.save_data)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         self.score = 0
         self.distance = 0.0
         # distance progressed within current stage (separate from total runtime distance)
@@ -238,28 +231,22 @@ class Game:
         self.status_message_until = 0
         self.finish_sign = None
         self.completed_stage = None
-        self.weather = WeatherManager()
 
         # Level transition / map animation state
         self.level_transition_start = None
         self.level_transition_duration = 1400  # ms for marker to travel between nodes
         self.level_transition_pause = 600  # ms pause after animation
+        self.level_complete_auto_advance_at = None
 
         self.player = None
         self.obstacles = []
         self.coins = []
-        self.nitro_pickups = []
         self.road = None
         self.last_obstacle_time = 0
         self.last_coin_time = 0
-        self.last_nitro_time = 0
         self.coin_frequency = 2000
         self.max_active_coins = COIN_MAX_ACTIVE.get(self.selected_difficulty, 2)
         self.obstacle_frequency = DIFFICULTY_SETTINGS[self.selected_difficulty]["obstacle_freq"]
-        self.nitro_charge = 0.0
-        self.nitro_active = False
-        self.nitro_cooldown_until = 0
-        self.boost_pressed_last_frame = False
         
         self.best_score = self.save_data.get("high_score", read_high_score())
         self.current_level_money = 0
@@ -269,35 +256,21 @@ class Game:
         self.money_popup_start_time = 0
 
         self.play_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 120, 200, 60, "START RACE")
-        self.garage_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "GARAGE")
         self.high_score_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "HIGH SCORES")
         self.menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 250, 200, 45, "MAIN MENU")
-        self.garage_buy_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 125, 220, 45, "BUY")
-        self.garage_select_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 125, 220, 45, "SELECT")
-        self.garage_back_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 185, 200, 45, "BACK")
-        self.garage_index = self.selected_skin
-        self.garage_message = ""
-        self.garage_message_until = 0
         self.exit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 310, 200, 45, "EXIT")
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
         self.restart_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 60, 160, 50, "RESTART")
         self.pause_menu_button = Button(WIDTH // 2 - 80, HEIGHT // 2 + 120, 160, 45, "MAIN MENU")
-<<<<<<< HEAD
-=======
-        self.game_over_continue_button = Button(WIDTH // 2 - 120, HEIGHT // 2 - 20, 240, 45, "CONTINUE")
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "RESTART")
         self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "MAIN MENU")
         self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 160, 200, 45, "QUIT")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
-        self.last_stage_score_bonus = 0
-        self.last_stage_money_bonus = 0
-        self.last_stage_bonus_total = 0
-
         self.current_music = load_music()
         self.coin_sound = create_coin_sound()
         self.damage_sound = create_damage_sound()
+        self.weather = WeatherManager()
         if self.current_music:
             pg.mixer.music.play(-1)
 
@@ -308,79 +281,6 @@ class Game:
 
     def set_state(self, state):
         self.state = state
-
-    def _configure_display(self, fullscreen, window_size=None):
-        flags = pg.DOUBLEBUF
-        if fullscreen:
-            flags |= pg.FULLSCREEN
-            size = (0, 0)
-        else:
-            flags |= pg.RESIZABLE
-            size = window_size or (max(1280, WIDTH * 2), max(720, HEIGHT * 2))
-
-        try:
-            self.display_surface = pg.display.set_mode(size, flags, vsync=1)
-        except TypeError:
-            self.display_surface = pg.display.set_mode(size, flags)
-
-        self.fullscreen = fullscreen
-        self._update_viewport()
-
-    def _update_viewport(self):
-        if self.display_surface is None:
-            self.viewport = pg.Rect(0, 0, WIDTH, HEIGHT)
-            self.display_scale = 1.0
-            self.source_view_rect = pg.Rect(0, 0, WIDTH, HEIGHT)
-            return
-
-        display_width, display_height = self.display_surface.get_size()
-        logical_width, logical_height = self.logical_size
-        self.display_scale = min(display_width / logical_width, display_height / logical_height)
-
-        viewport_width = max(1, int(logical_width * self.display_scale))
-        viewport_height = max(1, int(logical_height * self.display_scale))
-        viewport_x = (display_width - viewport_width) // 2
-        viewport_y = (display_height - viewport_height) // 2
-        self.viewport = pg.Rect(viewport_x, viewport_y, viewport_width, viewport_height)
-        self.source_view_rect = pg.Rect(0, 0, logical_width, logical_height)
-
-    def _to_logical_pos(self, pos):
-        if self.display_scale <= 0 or self.viewport.width <= 0 or self.viewport.height <= 0:
-            return (-1, -1)
-
-        if not self.viewport.collidepoint(pos):
-            return (-1, -1)
-
-        local_x = pos[0] - self.viewport.x
-        local_y = pos[1] - self.viewport.y
-        x = int(local_x * WIDTH / self.viewport.width)
-        y = int(local_y * HEIGHT / self.viewport.height)
-
-        logical_width, logical_height = self.logical_size
-        x = max(0, min(logical_width - 1, x))
-        y = max(0, min(logical_height - 1, y))
-        return (x, y)
-
-    def _get_mouse_pos(self):
-        return self._to_logical_pos(pg.mouse.get_pos())
-
-    def _present_frame(self):
-        if self.display_surface is None:
-            return
-
-        self.display_surface.fill((24, 30, 42))
-        if self.viewport.width == WIDTH and self.viewport.height == HEIGHT:
-            self.display_surface.blit(self.screen, self.viewport.topleft)
-        else:
-            frame = pg.transform.smoothscale(self.screen, (self.viewport.width, self.viewport.height))
-            self.display_surface.blit(frame, self.viewport.topleft)
-        pg.display.flip()
-
-    def toggle_fullscreen(self):
-        if os.environ.get("SDL_VIDEODRIVER", "").lower() == "dummy":
-            return
-        self._configure_display(not self.fullscreen)
-
 
     def _sync_player_skin(self):
         self.player_color = CAR_SKINS[self.selected_skin]["color"]
@@ -433,8 +333,6 @@ class Game:
         self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
         self.games_played = self.save_data.get("games_played", 0)
         self.total_score = self.save_data.get("total_score", 0)
-<<<<<<< HEAD
-=======
         self._sync_player_skin()
 
     def _cycle_unlocked_skin(self, direction):
@@ -454,35 +352,6 @@ class Game:
         self.garage_message = message
         self.garage_message_until = pg.time.get_ticks() + duration
 
-<<<<<<< HEAD
-    def reset_game(self, change_state=True):
-<<<<<<< HEAD
->>>>>>> e19a521 (Add garage vehicle progression system)
-=======
-        previous_state = self.state
-        was_paused = self.paused
->>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
-        self._sync_player_skin()
-
-    def _cycle_unlocked_skin(self, direction):
-        unlocked = self._get_unlocked_skin_indices()
-
-        if self.selected_skin not in unlocked:
-            self.selected_skin = unlocked[0]
-
-        current_pos = unlocked.index(self.selected_skin)
-        self.selected_skin = unlocked[(current_pos + direction) % len(unlocked)]
-
-        self._sync_player_skin()
-        self.save_preferences()
-        self.reset_game(change_state=False)
-
-    def register_garage_message(self, message, duration=1600):
-        self.garage_message = message
-        self.garage_message_until = pg.time.get_ticks() + duration
-
-=======
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def get_checkpoint_stage(self):
         try:
             checkpoint_stage = int(self.stage)
@@ -496,110 +365,36 @@ class Game:
     def calculate_stage_rewards(self, stage_id):
         stage_id = max(1, int(stage_id))
         score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
-<<<<<<< HEAD
-        money_bonus = ECONOMY_STAGE_REWARD_MONEY
+        money_bonus = int(const.ECONOMY_STAGE_REWARD_MONEY)
         return int(score_bonus), int(money_bonus)
 
-    def reset_game(self, change_state=True, start_stage=None):
-        previous_state = self.state
-        was_paused = self.paused
-    def _get_selected_skin_stats(self):
-        skin = CAR_SKINS[self.selected_skin]
-        return {
-            "speed_bonus": float(skin.get("speed_bonus", 0)),
-            "handling_bonus": float(skin.get("handling_bonus", 0)),
-        }
+    def reset_game(self, change_state=True, start_stage=None, previous_state=None):
+        self._sync_player_skin()
+        # If caller didn't supply previous_state, infer from current state
+        if previous_state is None:
+            previous_state = getattr(self, "state", None)
 
-    def _apply_vehicle_starting_stats(self):
-        if self.player is None:
-            return
-
-        stats = self._get_selected_skin_stats()
-
-        if hasattr(self.player, "velocity"):
-            self.player.velocity = float(const.PLAYER_SPEED_DEFAULT + stats["speed_bonus"])
-
-    def _get_unlocked_skin_indices(self):
-        unlocked = self.save_data.get("unlocked_skins", [0])
-        valid_indices = []
-
-        for index in unlocked:
+        # If a forced next start stage was provided (e.g. Restart from GAME_OVER), prefer it
+        if start_stage is None and hasattr(self, "_force_next_start_stage"):
             try:
-                index = int(index)
-            except (TypeError, ValueError):
-                continue
+                start_stage = int(getattr(self, "_force_next_start_stage"))
+            except Exception:
+                start_stage = getattr(self, "_force_next_start_stage")
+            try:
+                del self._force_next_start_stage
+            except Exception:
+                try:
+                    delattr(self, "_force_next_start_stage")
+                except Exception:
+                    pass
 
-            if 0 <= index < len(CAR_SKINS) and index not in valid_indices:
-                valid_indices.append(index)
-
-        if 0 not in valid_indices:
-            valid_indices.insert(0, 0)
-
-        return valid_indices or [0]
-
-    def _refresh_profile_from_save(self):
-        self.save_data = load_save_data()
-        self.selected_skin = self.save_data.get("selected_skin", 0)
-        self.selected_skin = max(0, min(self.selected_skin, len(CAR_SKINS) - 1))
-        self.selected_difficulty = self.save_data.get("selected_difficulty", DEFAULT_DIFFICULTY)
-
-        if self.selected_difficulty not in DIFFICULTY_SETTINGS:
-            self.selected_difficulty = DEFAULT_DIFFICULTY
-
-        self.total_money = self.save_data.get("total_money", 0)
-        self.best_stage = self.save_data.get("best_stage", DEFAULT_STAGE)
-        self.games_played = self.save_data.get("games_played", 0)
-        self.total_score = self.save_data.get("total_score", 0)
-        self._sync_player_skin()
-
-    def _cycle_unlocked_skin(self, direction):
-        unlocked = self._get_unlocked_skin_indices()
-
-        if self.selected_skin not in unlocked:
-            self.selected_skin = unlocked[0]
-
-        current_pos = unlocked.index(self.selected_skin)
-        self.selected_skin = unlocked[(current_pos + direction) % len(unlocked)]
-
-        self._sync_player_skin()
-        self.save_preferences()
-        self.reset_game(change_state=False)
-
-    def register_garage_message(self, message, duration=1600):
-        self.garage_message = message
-        self.garage_message_until = pg.time.get_ticks() + duration
-
-    def get_checkpoint_stage(self):
-        try:
-            checkpoint_stage = int(self.stage)
-        except (TypeError, ValueError):
-            checkpoint_stage = DEFAULT_STAGE
-        return max(DEFAULT_STAGE, checkpoint_stage)
-
-    def has_checkpoint(self):
-        return self.get_checkpoint_stage() > DEFAULT_STAGE
-
-    def calculate_stage_rewards(self, stage_id):
-        stage_id = max(1, int(stage_id))
-        score_bonus = const.STAGE_CLEAR_SCORE_BONUS + stage_id * const.STAGE_LEVEL_SCORE_MULTIPLIER
-        money_bonus = ECONOMY_STAGE_REWARD_MONEY
-=======
-        money_bonus = const.STAGE_CLEAR_MONEY_BONUS + stage_id * const.STAGE_LEVEL_MONEY_MULTIPLIER
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
-        return int(score_bonus), int(money_bonus)
-
-    def reset_game(self, change_state=True, start_stage=None):
-        previous_state = self.state
-        was_paused = self.paused
-        self._sync_player_skin()
+        # If we are resetting after a GAME_OVER, restore the last successful money snapshot
         if previous_state == GameState.GAME_OVER:
             self._restore_money_after_game_over()
         self.player = Car(WIDTH // 2 - 25, HEIGHT - 150, self.player_color, True, self.player_type)
         self.obstacles = []
         self.coins = []
         self.nitro_pickups = []
-<<<<<<< HEAD
-<<<<<<< HEAD
 
         # Determine starting stage:
         # - If an explicit `start_stage` is provided, use it.
@@ -612,43 +407,37 @@ class Game:
             except (TypeError, ValueError):
                 starting_stage = DEFAULT_STAGE
         else:
+            # If we're resetting from GAME_OVER, resume from the run's current stage
+            # (so Restart returns the level the player was on), otherwise fall back
+            # to DEFAULT_STAGE.
             if previous_state == GameState.GAME_OVER:
                 try:
                     starting_stage = int(getattr(self, "stage", DEFAULT_STAGE))
                 except (TypeError, ValueError):
-                    starting_stage = DEFAULT_STAGE
+                    starting_stage = getattr(self, "stage", DEFAULT_STAGE)
             else:
                 starting_stage = DEFAULT_STAGE
 
-=======
-
-        try:
-            starting_stage = int(start_stage) if start_stage is not None else DEFAULT_STAGE
-        except (TypeError, ValueError):
-            starting_stage = DEFAULT_STAGE
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         starting_stage = max(DEFAULT_STAGE, starting_stage)
 
         self.stage = starting_stage
         self.level = starting_stage
-<<<<<<< HEAD
+        # Remember the stage this run started on so Restart can have a fallback.
+        try:
+            self.run_start_stage = int(starting_stage)
+        except Exception:
+            self.run_start_stage = starting_stage
+        if self.stage == DEFAULT_STAGE:
+            self.total_money = 100
 
         self._apply_level_one_wallet_floor(previous_state)
-=======
-        self.stage = DEFAULT_STAGE
-        self.level = DEFAULT_STAGE
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
-=======
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.score = 0
         self.current_level_money = 0
         self.is_new_high_score = False
 
         self.money_popup_amount = 0
         self.money_popup_start_time = 0
-        self.last_stage_score_bonus = 0
-        self.last_stage_money_bonus = 0
-        self.last_stage_bonus_total = 0
+
 
         self.lives = PLAYER_START_LIVES
         self.last_damage_time = 0
@@ -656,7 +445,6 @@ class Game:
         self.distance = 0.0
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
-        self.last_nitro_time = pg.time.get_ticks()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
         self.base_speed = diff_settings["base_speed"]
@@ -664,33 +452,27 @@ class Game:
         try:
             import game.constants as const
 
-            vehicle_stats = self._get_selected_skin_stats()
-            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED)) + vehicle_stats["speed_bonus"]
+            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED))
         except Exception:
             pass
         self.current_speed = self.base_speed
-        # ensure player's internal velocity starts with the selected vehicle speed bonus
-        try:
-            self._apply_vehicle_starting_stats()
-        except Exception:
-            pass
+        # ensure player's internal velocity starts at the PLAYER_SPEED_DEFAULT
+        from .constants import PLAYER_SPEED_DEFAULT
+        if self.player and hasattr(self.player, "velocity"):
+            try:
+                self.player.velocity = float(PLAYER_SPEED_DEFAULT)
+            except Exception:
+                pass
         self.obstacle_frequency = diff_settings["obstacle_freq"]
         self.road = Road(self.base_speed)
         self.load_stage_config(self.stage)
-<<<<<<< HEAD
         self.coin_frequency = self.get_coin_spawn_interval()
         self.max_active_coins = self.get_max_active_coins()
-=======
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         # reset stage progress tracking (do not reset `distance` which is runtime total)
         self.stage_progress_distance = 0.0
         self._reset_stage_economy_counters()
         self.finish_sign = None
         self.completed_stage = None
-        self.nitro_charge = 0.0
-        self.nitro_active = False
-        self.nitro_cooldown_until = 0
-        self.boost_pressed_last_frame = False
         self.paused = False
         self.pause_button.text = "PAUSE"
         self.score_multiplier = 1.0
@@ -699,31 +481,22 @@ class Game:
         self.consecutive_actions = 0
         self.next_stage_score = 3
         self.clear_hazard_effects()
-        self.weather.reset()
-        self.weather.update_for_stage(
-            stage=self.stage,
-            progress_ratio=0.0,
-            selected_difficulty=self.selected_difficulty,
-            current_time=pg.time.get_ticks(),
-        )
         self.update_player_bounds()
 
-        
-        try:
-            if self.current_music and not self.music_muted:
-                if previous_state == GameState.GAME_OVER:
-                    pg.mixer.music.stop()
-                    pg.mixer.music.play(-1)
-                elif was_paused:
-                    if not pg.mixer.music.get_busy():
-                        pg.mixer.music.play(-1)
-                    else:
-                        pg.mixer.music.unpause()
-        except Exception:
-            pass
+        # Defensive enforcement: ensure Level 1 always starts with 100 total money.
+        if self.stage == 1:
+            self.total_money = 100
+            self.save_data["total_money"] = 100
+            try:
+                from game.storage import save_save_data
+
+                save_save_data(self.save_data)
+            except Exception:
+                pass
 
         if change_state:
             self.set_state(GameState.PLAYING)
+            self._ensure_music_playing(force=(previous_state == GameState.GAME_OVER))
 
     def stop_nitro_boost(self, current_time=None, start_cooldown=True):
         """Stop any active nitro effect; optionally start cooldown."""
@@ -740,14 +513,19 @@ class Game:
             pass
 
     def _apply_level_one_wallet_floor(self, previous_state):
-        """Ensure a fresh Level 1 run starts with exactly 100 money."""
-        if self.stage == 1 and previous_state != GameState.GAME_OVER:
-            self.total_money = 100
-            self.save_data["total_money"] = 100
-            try:
-                from game.storage import save_save_data
+        """Ensure Level 1 run starts with exactly 100 money.
 
-                save_save_data(self.save_data)
+        Keep this as a runtime-only floor so failed runs do not alter the
+        saved wallet. Successful stage completion still persists earnings."""
+        if self.stage == 1:
+            self.total_money = 100
+            if isinstance(getattr(self, "save_data", None), dict):
+                self.save_data["total_money"] = 100
+            try:
+                from .storage import save_save_data
+
+                if isinstance(getattr(self, "save_data", None), dict):
+                    save_save_data(self.save_data)
             except Exception:
                 pass
 
@@ -921,19 +699,20 @@ class Game:
         if penalty <= 0:
             return 0
 
-        self.current_level_money -= penalty
+        self.current_level_money = int(getattr(self, "current_level_money", 0)) - penalty
+
         self.stage_collision_penalty_money += penalty
         self.money_popup_amount = -penalty
         self.money_popup_start_time = current_time
-        self.register_status_message(f"Collision penalty -{penalty}", current_time, duration=900)
+        self.register_status_message(f"Crash penalty -{penalty}", current_time, duration=900)
         return penalty
 
     def load_stage_config(self, stage_id):
         # Load stage config from constants.STAGE_DEFINITIONS, fall back to scaling
-        cfg = STAGE_DEFINITIONS.get(stage_id)
+        cfg = const.STAGE_DEFINITIONS.get(stage_id)
         if not cfg:
             # simple fallback: increase difficulty gradually
-            base = STAGE_DEFINITIONS[max(STAGE_DEFINITIONS.keys())]
+            base = const.STAGE_DEFINITIONS[max(const.STAGE_DEFINITIONS.keys())]
             cfg = dict(base)
             cfg["stage_id"] = stage_id
             cfg["distance_target"] = int(base["distance_target"] + (stage_id - base["stage_id"]) * 60)
@@ -953,28 +732,16 @@ class Game:
 
     def start_game(self):
         self.reset_game(change_state=True)
-        if self.current_music and not self.music_muted:
-            pg.mixer.music.play(-1)
-<<<<<<< HEAD
-    
-=======
+        self._ensure_music_playing()
 
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def continue_from_checkpoint(self):
         self.save_data = load_save_data()
         checkpoint_stage = self.get_checkpoint_stage()
         self.reset_game(change_state=True, start_stage=checkpoint_stage)
-<<<<<<< HEAD
         # Use a neutral message instead of showing the level number
         self.register_status_message("Play again", pg.time.get_ticks(), duration=1600)
-        if self.current_music and not self.music_muted:
-            pg.mixer.music.play(-1)
-=======
-        self.register_status_message(f"Continuing from Level {checkpoint_stage}", pg.time.get_ticks(), duration=1600)
-        if self.current_music and not self.music_muted:
-            pg.mixer.music.play(-1)
+        self._ensure_music_playing()
 
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
     def open_high_scores(self):
         self.best_score = read_high_score()
         self.set_state(GameState.HIGH_SCORE)
@@ -1004,10 +771,9 @@ class Game:
         self.save_data = save_player_preferences(
             self.selected_skin,
             self.selected_difficulty,
-    )    
+        )
 
     def return_to_menu(self):
-        previous_state = self.state
         self.save_preferences()
         self.save_data = load_save_data()
         self.best_score = self.save_data["high_score"]
@@ -1018,13 +784,21 @@ class Game:
         self.reset_game(change_state=False)
         self.set_state(GameState.MENU)
 
-       
-        try:
-            if previous_state == GameState.GAME_OVER and self.current_music and not self.music_muted:
-                pg.mixer.music.stop()
-                pg.mixer.music.play(-1)
-        except Exception:
-            pass
+    def _ensure_music_playing(self, force=False):
+        if self.current_music and not self.music_muted:
+            try:
+                if force:
+                    pg.mixer.music.stop()
+                    pg.mixer.music.play(-1)
+                elif not pg.mixer.music.get_busy():
+                    pg.mixer.music.play(-1)
+            except Exception:
+                try:
+                    if force:
+                        pg.mixer.music.stop()
+                    pg.mixer.music.play(-1)
+                except Exception:
+                    pass
 
     def handle_events(self):
         for event in pg.event.get():
@@ -1035,29 +809,18 @@ class Game:
                 pg.quit()
                 sys.exit()
 
-            if event.type == pg.VIDEORESIZE and not self.fullscreen:
-                self._configure_display(False, window_size=event.size)
-                continue
-
             if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
-                logical_mouse_pos = self._to_logical_pos(event.pos)
-                if logical_mouse_pos == (-1, -1):
-                    continue
                 if self.state == GameState.MENU:
-                    self.handle_menu_click(logical_mouse_pos)
+                    self.handle_menu_click(event.pos)
                 elif self.state == GameState.HIGH_SCORE:
-                    if self.menu_button.is_clicked(logical_mouse_pos):
+                    if self.menu_button.is_clicked(event.pos):
                         self.return_to_menu()
-                elif self.state == GameState.GARAGE:
-                    self.handle_garage_click(event.pos)
                 elif self.state == GameState.PLAYING:
-                    self.handle_playing_click(logical_mouse_pos)
+                    self.handle_playing_click(event.pos)
                 elif self.state == GameState.GAME_OVER:
-                    self.handle_game_over_click(logical_mouse_pos)
+                    self.handle_game_over_click(event.pos)
 
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_F11:
-                    self.toggle_fullscreen()
                 if event.key in {pg.K_p, pg.K_ESCAPE}:
                     if self.state == GameState.PLAYING:
                         self.toggle_pause()
@@ -1065,21 +828,18 @@ class Game:
                         self.return_to_menu()
                 if event.key == pg.K_h and self.state == GameState.MENU:
                     self.open_high_scores()
-                if event.key == pg.K_g and self.state == GameState.MENU:
-                    self.garage_index = self.selected_skin
-                    self.set_state(GameState.GARAGE)
-
-                if self.state == GameState.GARAGE:
-                    if event.key == pg.K_LEFT:
-                        self.garage_index = (self.garage_index - 1) % len(CAR_SKINS)
-                    elif event.key == pg.K_RIGHT:
-                        self.garage_index = (self.garage_index + 1) % len(CAR_SKINS)
-                    elif event.key in {pg.K_ESCAPE, pg.K_BACKSPACE}:
-                        self.return_to_menu()
                 if event.key == pg.K_r and (self.state == GameState.GAME_OVER or self.paused):
-                    # Restart: when in GAME_OVER this will resume the same stage
-                    # (reset_game uses previous_state to preserve stage on GAME_OVER).
-                    self.reset_game()
+                    # Restart: when in GAME_OVER resume at the level the player
+                    # was on when they died (so Restart returns you to the same level).
+                    if self.state == GameState.GAME_OVER:
+                        start_stage = getattr(self, "stage", getattr(self, "run_start_stage", self.stage))
+                        try:
+                            self._force_next_start_stage = int(start_stage)
+                        except Exception:
+                            self._force_next_start_stage = start_stage
+                        self.reset_game()
+                    else:
+                        self.reset_game()
                 if self.state == GameState.STAGE_COMPLETE and event.key in {pg.K_RETURN, pg.K_KP_ENTER, pg.K_SPACE}:
                     self.start_next_stage()
 
@@ -1097,16 +857,19 @@ class Game:
 
         left_arrow = layout["left_arrow"]
         right_arrow = layout["right_arrow"]
-        if left_arrow.collidepoint(mouse_pos) or right_arrow.collidepoint(mouse_pos):
-            self.garage_index = self.selected_skin
-            self.set_state(GameState.GARAGE)
-            return
+        if left_arrow.collidepoint(mouse_pos):
+            self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
+            self._sync_player_skin()
+            self.save_preferences()
+            self.reset_game(change_state=False)
+        if right_arrow.collidepoint(mouse_pos):
+            self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
+            self._sync_player_skin()
+            self.save_preferences()
+            self.reset_game(change_state=False)
 
         if self.play_button.is_clicked(mouse_pos):
             self.start_game()
-        if self.garage_button.is_clicked(mouse_pos):
-            self.garage_index = self.selected_skin
-            self.set_state(GameState.GARAGE)
         if self.high_score_button.is_clicked(mouse_pos):
             self.open_high_scores()
         if self.exit_button.is_clicked(mouse_pos):
@@ -1139,19 +902,19 @@ class Game:
     def handle_game_over_click(self, mouse_pos):
         self.sync_game_over_button_rects()
 
-        if self.has_checkpoint() and self.game_over_continue_button.is_clicked(mouse_pos):
-            self.continue_from_checkpoint()
-            return
+        # Only allow Restart from the GAME_OVER screen (per user request).
         if self.game_over_restart_button.is_clicked(mouse_pos):
-            # Restart from the Game Over screen: resume the same stage.
+            # Restart should target the level the player was on when the run ended
+            start_stage = getattr(self, "stage", getattr(self, "run_start_stage", DEFAULT_STAGE))
+            # Use a temporary attribute so the runtime patched reset wrapper
+            # can pick it up reliably (some patched/orig wrappers may
+            # manipulate kwargs). This avoids relying on kwargs being
+            # preserved through layers of wrappers.
+            try:
+                self._force_next_start_stage = int(start_stage)
+            except Exception:
+                self._force_next_start_stage = start_stage
             self.reset_game()
-        if self.game_over_menu_button.is_clicked(mouse_pos):
-            self.return_to_menu()
-        if self.game_over_quit_button.is_clicked(mouse_pos):
-            if self.current_music:
-                pg.mixer.music.stop()
-            pg.quit()
-            sys.exit()
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -1177,9 +940,6 @@ class Game:
         if hasattr(coin, "road_ratio"):
             coin.x = self.road.get_travel_x(coin.y, coin.road_ratio, coin.radius * 2) + coin.radius
 
-    def align_nitro_to_road(self, pickup):
-        if hasattr(pickup, "road_ratio"):
-            pickup.x = self.road.get_travel_x(pickup.y, pickup.road_ratio, pickup.radius * 2) + pickup.radius
 
     def clear_hazard_effects(self):
         self.skid_end_time = 0
@@ -1193,8 +953,7 @@ class Game:
     def get_player_speed_fraction(self):
         try:
             vel = float(self.player.get_velocity())
-            max_speed = const.MAX_SPEED + getattr(self.player, "max_speed_bonus", 0.0)
-            frac = (vel - const.MIN_SPEED) / max(1.0, (max_speed - const.MIN_SPEED))
+            frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
             return max(0.0, min(1.0, frac))
         except Exception:
             return 0.0
@@ -1208,6 +967,18 @@ class Game:
         if hasattr(obstacle, "get_collision_rect"):
             return obstacle.get_collision_rect()
         return pg.Rect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
+
+    def circle_hits_player(self, cx, cy, radius, tolerance=0):
+        try:
+            rect = self.get_player_collision_rect()
+            nearest_x = max(rect.left, min(cx, rect.right))
+            nearest_y = max(rect.top, min(cy, rect.bottom))
+            dx = cx - nearest_x
+            dy = cy - nearest_y
+            r = max(0, int(radius)) + int(tolerance)
+            return (dx * dx + dy * dy) <= (r * r)
+        except Exception:
+            return False
 
     def can_spawn_obstacle(self, new_obstacle):
         new_rect = self.get_obstacle_rect(new_obstacle)
@@ -1239,22 +1010,22 @@ class Game:
             weights=list(track_weights.values()),
             k=1,
         )[0]
-        # Choose a spawn lane that is not overcrowded so obstacles appear
-        # across all lanes instead of leaving long empty spots.
-        lane = self._choose_spawn_lane()
+        # Choose a lane with a mild edge bias so the far left and far right
+        # lanes remain active without making them dominant.
+        lane = random.choices([0, 1, 2], weights=[1.35, 1.0, 1.35], k=1)[0]
         lane_ratio = (lane + 0.5) / 3
         # If spawning in the center lane, occasionally offset slightly left/right
         # so obstacles appear just off-center as well.
-        if lane == 1 and random.random() < 0.5:
-            lane_ratio = max(0.33, min(0.66, 0.5 + random.uniform(-0.16, 0.16)))
+        if lane == 1 and random.random() < 0.55:
+            lane_ratio = max(0.28, min(0.72, 0.5 + random.uniform(-0.18, 0.18)))
         min_speed, max_speed = diff_settings["obstacle_speed"]
         stage_speed_bonus = self.get_stage_speed_bonus()
         speed_multiplier = cfg.get("enemy_speed_multiplier", 1.0)
 
         # More frequently spawn obstacles exactly at the extreme left/right
         # so players can't permanently safe-spot at the absolute screen sides.
-        # 40% chance to spawn at an edge, placed at 0.0 (left) or 1.0 (right).
-        if random.random() < 0.40:
+        # 55% chance to spawn at an edge, placed at 0.0 (left) or 1.0 (right).
+        if random.random() < 0.55:
             if random.choice([True, False]):
                 lane_ratio = 0.0
             else:
@@ -1285,8 +1056,8 @@ class Game:
         appears because a single lane is overcrowded.
         """
         # Small bias to spawn in the center lane more often to keep
-        # mid-screen traffic denser (helps avoid too-few middle obstacles).
-        if random.random() < 0.25:
+        # mid-screen traffic denser, but do not starve the outer lanes.
+        if random.random() < 0.15:
             return 1
         # Count obstacles per lane (approximate by road_ratio)
         counts = [0, 0, 0]
@@ -1325,109 +1096,24 @@ class Game:
         min_count = min(counts)
         preferred = [i for i, c in enumerate(counts) if c == min_count]
         if preferred:
-            return random.choice(preferred)
+            # Give a slight edge bias so leftmost/rightmost lanes are used
+            # regularly without forcing them every time.
+            weights = [1.15 if lane in (0, 2) else 1.0 for lane in preferred]
+            return random.choices(preferred, weights=weights, k=1)[0]
 
-        return random.randint(0, 2)
+        return random.choices([0, 1, 2], weights=[1.15, 1.0, 1.15], k=1)[0]
 
 
     def register_status_message(self, message, current_time, duration=1200):
         self.status_message = message
         self.status_message_until = current_time + duration
 
-    def get_effective_world_speed(self):
-        if self.nitro_active:
-            return self.current_speed * NITRO_WORLD_SPEED_MULTIPLIER
-        return self.current_speed
-
-    def get_nitro_motion_multiplier(self):
-        if not self.nitro_active:
-            return 1.0
-        return NITRO_WORLD_SPEED_MULTIPLIER
-
-    def circle_hits_player(self, circle_x, circle_y, radius, tolerance=6):
-        rect = pg.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
-        nearest_x = max(rect.left, min(circle_x, rect.right))
-        nearest_y = max(rect.top, min(circle_y, rect.bottom))
-        dx = circle_x - nearest_x
-        dy = circle_y - nearest_y
-        return dx * dx + dy * dy <= (radius + tolerance) ** 2
-
-    def can_activate_nitro(self, current_time):
-        return (
-            not self.nitro_active
-            and self.nitro_charge >= NITRO_MIN_ACTIVATION
-            and current_time >= self.nitro_cooldown_until
-        )
-
-    def start_nitro_boost(self, current_time):
-        if not self.can_activate_nitro(current_time):
-            return False
-
-        self.nitro_active = True
-        self.player.max_speed_bonus = NITRO_MAX_SPEED_BONUS
-        self.player.accelerate(NITRO_MAX_SPEED_BONUS * 0.45)
-        self.road.speed_multiplier = NITRO_WORLD_SPEED_MULTIPLIER
-        self.register_status_message("Nitro engaged", current_time, duration=900)
-        return True
-
-    def stop_nitro_boost(self, current_time, start_cooldown=True):
-        self.nitro_active = False
-        if self.player is not None:
-            self.player.max_speed_bonus = 0.0
-        if self.road is not None:
-            self.road.speed_multiplier = 1.0
-        if start_cooldown:
-            self.nitro_cooldown_until = current_time + NITRO_COOLDOWN_MS
-
-    def update_nitro_state(self, current_time, dt):
-        if not self.nitro_active:
-            if self.player is not None:
-                self.player.max_speed_bonus = 0.0
-            if self.road is not None:
-                self.road.speed_multiplier = 1.0
-            return
-
-        self.nitro_charge = max(0.0, self.nitro_charge - (NITRO_DRAIN_PER_SECOND * dt))
-        self.player.max_speed_bonus = NITRO_MAX_SPEED_BONUS
-        self.road.speed_multiplier = NITRO_WORLD_SPEED_MULTIPLIER
-        self.player.accelerate(NITRO_BOOST_ACCEL * dt)
-
-        if self.nitro_charge <= 0:
-            self.stop_nitro_boost(current_time, start_cooldown=True)
-            self.register_status_message("Nitro cooling down", current_time, duration=1200)
-
-    def spawn_nitro_pickup(self, current_time):
-        if self.finish_sign is not None or self.nitro_active or len(self.nitro_pickups) >= 1:
-            return
-        if current_time - self.last_nitro_time <= NITRO_SPAWN_INTERVAL:
-            return
-
-        lane_ratio = random.uniform(0.14, 0.86)
-        pickup = NitroPickup(self.road.get_travel_x(0, lane_ratio, 26) + 13, -70)
-        pickup.road_ratio = lane_ratio
-        self.nitro_pickups.append(pickup)
-        self.last_nitro_time = current_time
-
-    def collect_nitro_pickup(self, pickup, current_time):
-        self.nitro_charge = min(NITRO_MAX_CHARGE, self.nitro_charge + pickup.charge_value)
-        self.consecutive_actions += 1
-        self.update_multiplier()
-        if self.player is not None:
-            self.player.accelerate(max(8.0, pickup.charge_value * 0.75))
-
-        activated = self.start_nitro_boost(current_time)
-        if activated:
-            self.register_status_message("Nitro pickup: boost engaged", current_time, duration=1000)
-        else:
-            self.register_status_message("Nitro collected", current_time, duration=900)
-
     def get_level_label(self, level=None):
         return f"Level {self.stage if level is None else level}"
 
     def update_player_handling(self, current_time, dt):
         speed_val = getattr(self.player, "velocity", const.PLAYER_SPEED_DEFAULT)
-        vehicle_stats = self._get_selected_skin_stats()
-        base_lateral_speed = max(5, int(6 + speed_val / 12 + vehicle_stats["handling_bonus"]))
+        base_lateral_speed = max(5, int(6 + speed_val / 12))
         control_factor = 1.0
 
         if current_time < self.water_slow_end_time:
@@ -1458,7 +1144,7 @@ class Game:
             return
 
         if self.finish_sign is None and self.stage_progress_distance >= target:
-            sign_speed = max(4, int(self.base_speed * cfg.get("enemy_speed_multiplier", 1.0) * 0.55))
+            sign_speed = max(7, int(self.base_speed * cfg.get("enemy_speed_multiplier", 1.0)))
             self.finish_sign = FinishLine(self.road, self.stage, sign_speed)
             self.register_status_message(f"Finish sign appeared for Level {self.stage}", current_time, duration=1800)
 
@@ -1467,11 +1153,9 @@ class Game:
         self.finish_sign = None
         self.obstacles = []
         self.coins = []
-        self.nitro_pickups = []
         self.clear_hazard_effects()
         if current_time is None:
             current_time = pg.time.get_ticks()
-<<<<<<< HEAD
 
         self.stop_nitro_boost(current_time, start_cooldown=False)
 
@@ -1502,26 +1186,7 @@ class Game:
             current_time,
             duration=1800,
         )
-=======
-        self.stop_nitro_boost(current_time, start_cooldown=False)
-<<<<<<< HEAD
-        self.register_status_message(f"Level {self.stage} complete", current_time, duration=1200)
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
-=======
-
-        self.last_stage_score_bonus, self.last_stage_money_bonus = self.calculate_stage_rewards(self.stage)
-        self.last_stage_bonus_total = self.last_stage_score_bonus + self.last_stage_money_bonus
-        self.score += self.last_stage_score_bonus
-        self.session_money += self.last_stage_money_bonus
-        self.money_popup_amount = self.last_stage_money_bonus
-        self.money_popup_start_time = current_time
-
-        self.register_status_message(
-            f"Level {self.stage} complete: +{self.last_stage_score_bonus} score, +{self.last_stage_money_bonus} money",
-            current_time,
-            duration=1800,
-        )
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
+        self.level_complete_auto_advance_at = current_time + 1800
         self.set_state(GameState.STAGE_COMPLETE)
         # initialize map-style transition animation
         try:
@@ -1540,16 +1205,11 @@ class Game:
         self._reset_stage_economy_counters()
         self.finish_sign = None
         self.completed_stage = None
-        self.last_stage_score_bonus = 0
-        self.last_stage_money_bonus = 0
-        self.last_stage_bonus_total = 0
+        self.level_complete_auto_advance_at = None
         self.obstacles = []
         self.coins = []
-        self.nitro_pickups = []
         self.clear_hazard_effects()
-        self.stop_nitro_boost(pg.time.get_ticks(), start_cooldown=False)
         self.load_stage_config(self.stage)
-<<<<<<< HEAD
         self.coin_frequency = self.get_coin_spawn_interval()
         self.max_active_coins = self.get_max_active_coins()
         try:
@@ -1561,17 +1221,8 @@ class Game:
             )
         except Exception:
             pass
-=======
-        self.weather.update_for_stage(
-            stage=self.stage,
-            progress_ratio=0.0,
-            selected_difficulty=self.selected_difficulty,
-            current_time=pg.time.get_ticks(),
-        )
->>>>>>> 3df94ff (Add dynamic weather system with visual and driving effects)
         self.last_obstacle_time = pg.time.get_ticks()
         self.last_coin_time = pg.time.get_ticks()
-        self.last_nitro_time = pg.time.get_ticks()
         self.paused = False
         self.set_state(GameState.PLAYING)
         if current_time is None:
@@ -1621,6 +1272,13 @@ class Game:
         self.screen.blit(banner, (WIDTH // 2 - banner_width // 2, HEIGHT - 54))
 
     def update(self):
+        if self.state == GameState.STAGE_COMPLETE:
+            if not self.paused and self.level_complete_auto_advance_at is not None:
+                current_time = pg.time.get_ticks()
+                if current_time >= self.level_complete_auto_advance_at:
+                    self.start_next_stage(current_time)
+            return
+
         if self.state != GameState.PLAYING or self.paused:
             return
 
@@ -1636,10 +1294,6 @@ class Game:
             self.player.move("left")
         if keys[pg.K_RIGHT]:
             self.player.move("right")
-        boost_pressed = keys[pg.K_SPACE] or keys[pg.K_LSHIFT] or keys[pg.K_RSHIFT]
-        if boost_pressed and not self.boost_pressed_last_frame:
-            self.start_nitro_boost(current_time)
-        self.boost_pressed_last_frame = boost_pressed
         # Brake input (S or Down) takes priority, then accelerate, otherwise friction
         if (keys[pg.K_s] or keys[pg.K_DOWN]) and hasattr(self.player, "accelerate"):
             # strong deceleration while braking
@@ -1651,8 +1305,6 @@ class Game:
             # apply friction (deceleration) when not accelerating nor braking
             if hasattr(self.player, "accelerate"):
                 self.player.accelerate(-FRICTION * dt)
-
-        self.update_nitro_state(current_time, dt)
 
         # update display-only speed from player's internal velocity (do not change game logic current_speed)
         try:
@@ -1673,11 +1325,9 @@ class Game:
                 self.stage_progress_distance += vel * dt
         except Exception:
             pass
-        
+
         try:
-            target_distance = float(
-                getattr(self, "current_stage_config", {}).get("distance_target", 1)
-            )
+            target_distance = float(getattr(self, "current_stage_config", {}).get("distance_target", 1))
             stage_progress_ratio = self.stage_progress_distance / max(1.0, target_distance)
             stage_progress_ratio = max(0.0, min(1.0, stage_progress_ratio))
         except Exception:
@@ -1697,12 +1347,11 @@ class Game:
             )
         except Exception:
             pass
-        
+
         self.update_player_bounds()
 
         diff_settings = DIFFICULTY_SETTINGS[self.selected_difficulty]
-        speed_factor = max(self.get_effective_world_speed() / BASE_SPEED, 1)
-        motion_multiplier = self.get_nitro_motion_multiplier()
+        speed_factor = max(self.current_speed / BASE_SPEED, 1)
 
         stage_density = max(0.55, getattr(self, "current_stage_config", {}).get("traffic_density", 1.0))
         # If the player is mostly stationary, increase spawn rate so obstacles
@@ -1723,7 +1372,7 @@ class Game:
 
         player_rect = self.get_player_collision_rect()
         for obstacle in self.obstacles[:]:
-            if obstacle.move(speed_multiplier=motion_multiplier):
+            if obstacle.move():
                 self.obstacles.remove(obstacle)
                 self.consecutive_actions += 1
                 self.update_multiplier()
@@ -1739,34 +1388,30 @@ class Game:
                         self.obstacles.remove(obstacle)
                     continue
 
-                self.consecutive_actions = 0
-                self.update_multiplier()
-                self.lives -= 1
-                self.last_damage_time = current_time
-                self.damage_flash_time = current_time
-<<<<<<< HEAD
-<<<<<<< HEAD
-                if self.damage_sound and not self.music_muted:
-                    self.damage_sound.play()
-                if getattr(self, "nitro_active", False):
+                if self.should_apply_collision_penalty(obstacle):
                     try:
-                        self.stop_nitro_boost(current_time, start_cooldown=True)
+                        self.apply_collision_penalty(current_time, self.stage)
                     except Exception:
                         pass
-                if self.should_apply_collision_penalty(obstacle):
-                    self.apply_collision_penalty(current_time, self.stage)
-=======
-=======
-                if self.damage_sound and not self.music_muted:
-                    self.damage_sound.play()
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
-                if self.nitro_active:
-                    self.stop_nitro_boost(current_time, start_cooldown=True)
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
-                if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
-                    self.register_status_message("Barrier impact: heavy damage", current_time)
-                else:
-                    self.register_status_message("Collision: avoid traffic", current_time)
+
+                damage_ready = self.last_damage_time <= 0 or (current_time - self.last_damage_time) >= DAMAGE_COOLDOWN
+                if damage_ready:
+                    self.consecutive_actions = 0
+                    self.update_multiplier()
+                    self.lives -= 1
+                    self.last_damage_time = current_time
+                    self.damage_flash_time = current_time
+                    if self.damage_sound and not self.music_muted:
+                        self.damage_sound.play()
+                    if getattr(self, "nitro_active", False):
+                        try:
+                            self.stop_nitro_boost(current_time, start_cooldown=True)
+                        except Exception:
+                            pass
+                    if isinstance(obstacle, Hazard) and obstacle.kind == "barrier":
+                        self.register_status_message("Barrier impact: heavy damage", current_time)
+                    else:
+                        self.register_status_message("Collision: avoid traffic", current_time)
                 if obstacle in self.obstacles and getattr(obstacle, "remove_on_hit", True):
                     self.obstacles.remove(obstacle)
                 if self.lives <= 0:
@@ -1775,7 +1420,7 @@ class Game:
                         pg.mixer.music.fadeout(2000)
 
         if self.finish_sign is not None:
-            if self.finish_sign.move(speed_multiplier=motion_multiplier):
+            if self.finish_sign.move():
                 self.enter_stage_complete(current_time)
             else:
                 player_rect = self.get_player_collision_rect()
@@ -1785,20 +1430,12 @@ class Game:
         if self.finish_sign is None:
             self.spawn_coin_pickup(current_time)
 
-        self.spawn_nitro_pickup(current_time)
-
-        self.spawn_nitro_pickup(current_time)
-
         for coin in self.coins[:]:
-            if coin.move(speed_multiplier=motion_multiplier):
+            if coin.move():
                 self.coins.remove(coin)
                 continue
             self.align_coin_to_road(coin)
             if self.circle_hits_player(coin.x, coin.y, coin.radius):
-<<<<<<< HEAD
-=======
-                coin.grow()
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
                 self.coins.remove(coin)
                 self.collect_coin_pickup(coin, current_time)
 
@@ -1806,7 +1443,6 @@ class Game:
                 self.update_stage_progression()
         self.apply_distance_rewards(current_time)
 
-<<<<<<< HEAD
         for pickup in list(getattr(self, "nitro_pickups", [])):
             if pickup.move(speed_multiplier=getattr(self, "motion_multiplier", 1.0)):
                 try:
@@ -1827,27 +1463,6 @@ class Game:
                     self.nitro_pickups.remove(pickup)
                 except Exception:
                     pass
-=======
-        for pickup in self.nitro_pickups[:]:
-            if pickup.move(speed_multiplier=motion_multiplier):
-                self.nitro_pickups.remove(pickup)
-                continue
-            self.align_nitro_to_road(pickup)
-            if self.circle_hits_player(pickup.x, pickup.y, pickup.radius, tolerance=4):
-                self.collect_nitro_pickup(pickup, current_time)
-                self.nitro_pickups.remove(pickup)
-
-        for pickup in self.nitro_pickups[:]:
-            if pickup.move(speed_multiplier=motion_multiplier):
-                self.nitro_pickups.remove(pickup)
-                continue
-            self.align_nitro_to_road(pickup)
-            if self.circle_hits_player(pickup.x, pickup.y, pickup.radius, tolerance=4):
-                self.collect_nitro_pickup(pickup, current_time)
-                self.nitro_pickups.remove(pickup)
-
-        if current_time - self.multiplier_timer > 3000:
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
             if self.score_multiplier > 1.0:
                 self.consecutive_actions = max(0, self.consecutive_actions - 1)
                 self.update_multiplier()
@@ -1866,8 +1481,6 @@ class Game:
             self.draw_menu()
         elif self.state == GameState.HIGH_SCORE:
             self.draw_high_score_screen()
-        elif self.state == GameState.GARAGE:
-            self.draw_garage_screen()
         elif self.state == GameState.STAGE_COMPLETE:
             self.draw_stage_complete_screen()
         else:
@@ -1878,8 +1491,7 @@ class Game:
             # fraction of speed between MIN_SPEED and current runtime MAX_SPEED
             try:
                 vel = float(self.player.get_velocity())
-                max_speed = const.MAX_SPEED + getattr(self.player, "max_speed_bonus", 0.0)
-                frac = (vel - const.MIN_SPEED) / max(1.0, (max_speed - const.MIN_SPEED))
+                frac = (vel - const.MIN_SPEED) / max(1.0, (const.MAX_SPEED - const.MIN_SPEED))
                 frac = max(0.0, min(1.0, frac))
             except Exception:
                 frac = 0.0
@@ -1904,19 +1516,9 @@ class Game:
 
             for coin in self.coins:
                 coin.draw(self.screen)
-            for pickup in self.nitro_pickups:
-                pickup.draw(self.screen)
-
-            self.weather.draw_environment(
-                self.screen,
-                self.player,
-                self.selected_difficulty,
-                player_visual_y=target_visual_y,
-            )
 
             self.draw_scoreboard()
             self.draw_status_banner()
-<<<<<<< HEAD
             self.pause_button.draw(self.screen, self.tiny_font)
             self.sound_button.draw(self.screen, self.tiny_font)
             # Speed HUD: show player's forward velocity in top-right
@@ -1932,16 +1534,6 @@ class Game:
                 bg.fill((0, 0, 0, 140))
                 self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
                 self.screen.blit(speed_text, speed_rect)
-                
-            self.weather.draw_hud(
-                self.screen,
-                self.small_font,
-                self.tiny_font,
-                self.selected_difficulty,
-            )    
-=======
-            self.draw_top_right_hud()
->>>>>>> bcd0777 (feat: add nitro boost gameplay system)
             self.draw_multiplier_feedback()
             self.draw_damage_feedback()
             if self.paused:
@@ -1949,7 +1541,7 @@ class Game:
             if self.state == GameState.GAME_OVER:
                 self.draw_game_over()
 
-        self._present_frame()
+        pg.display.flip()
 
     def draw_background(self):
         for y in range(HEIGHT):
@@ -1997,10 +1589,9 @@ class Game:
         right_arrow = pg.Rect(right_panel.right - 58, right_panel.y + 74, 40, 40)
 
         action_y = content_top + 228
-        start_button = pg.Rect(card_x + 30, action_y, 122, 48)
-        garage_button = pg.Rect(card_x + 162, action_y, 110, 48)
-        score_button = pg.Rect(card_x + 282, action_y, 148, 48)
-        exit_button = pg.Rect(card_x + 440, action_y, 90, 48)
+        start_button = pg.Rect(card_x + 30, action_y, 155, 48)
+        score_button = pg.Rect(card_x + 196, action_y, 168, 48)
+        exit_button = pg.Rect(card_x + 375, action_y, 155, 48)
         footer_rect = pg.Rect(card_x + 30, card_y + 418, MENU_CARD_WIDTH - 60, 74)
 
         return {
@@ -2013,7 +1604,6 @@ class Game:
             "left_arrow": left_arrow,
             "right_arrow": right_arrow,
             "start_button": start_button,
-            "garage_button": garage_button,
             "score_button": score_button,
             "exit_button": exit_button,
             "footer_rect": footer_rect,
@@ -2022,37 +1612,23 @@ class Game:
     def sync_menu_button_rects(self, layout):
         self.play_button.rect.topleft = layout["start_button"].topleft
         self.play_button.rect.size = layout["start_button"].size
-
-        self.garage_button.rect.topleft = layout["garage_button"].topleft
-        self.garage_button.rect.size = layout["garage_button"].size
-
         self.high_score_button.rect.topleft = layout["score_button"].topleft
         self.high_score_button.rect.size = layout["score_button"].size
-
         self.exit_button.rect.topleft = layout["exit_button"].topleft
         self.exit_button.rect.size = layout["exit_button"].size
 
     def sync_game_over_button_rects(self):
-        button_spacing = 52
-        button_size = (200, 42)
+        button_y_start = HEIGHT // 2 - 20
+        button_spacing = 60
+        button_size = (200, 45)
 
-<<<<<<< HEAD
         restart_y = HEIGHT // 2 + 28
-=======
-        if self.has_checkpoint():
-            button_y_start = HEIGHT // 2 + 22
-            self.game_over_continue_button.rect.topleft = (WIDTH // 2 - 120, button_y_start)
-            self.game_over_continue_button.rect.size = (240, 42)
-            restart_y = button_y_start + button_spacing
-        else:
-            restart_y = HEIGHT // 2 + 28
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
 
         self.game_over_restart_button.rect.topleft = (WIDTH // 2 - 100, restart_y)
         self.game_over_restart_button.rect.size = button_size
-        self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, restart_y + button_spacing)
+        self.game_over_menu_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing)
         self.game_over_menu_button.rect.size = button_size
-        self.game_over_quit_button.rect.topleft = (WIDTH // 2 - 100, restart_y + button_spacing * 2)
+        self.game_over_quit_button.rect.topleft = (WIDTH // 2 - 100, button_y_start + button_spacing * 2)
         self.game_over_quit_button.rect.size = button_size
 
     def draw_menu_panel(self, rect, title):
@@ -2079,7 +1655,7 @@ class Game:
             button_rect = layout["difficulty_buttons"][index]
             color = GREEN if difficulty == self.selected_difficulty else GRAY
             hover_color = (min(color[0] + 30, 255), min(color[1] + 30, 255), min(color[2] + 30, 255))
-            mouse_pos = self._get_mouse_pos()
+            mouse_pos = pg.mouse.get_pos()
             button_color = hover_color if button_rect.collidepoint(mouse_pos) else color
             pg.draw.rect(self.screen, button_color, button_rect, border_radius=8)
             pg.draw.rect(self.screen, WHITE, button_rect, 2, border_radius=8)
@@ -2095,7 +1671,7 @@ class Game:
         preview_car = Car(preview_rect.centerx - 25, preview_rect.y + 6, self.player_color, True, self.player_type)
         preview_car.draw(self.screen)
 
-        mouse_pos = self._get_mouse_pos()
+        mouse_pos = pg.mouse.get_pos()
         for arrow_rect, symbol in [(layout["left_arrow"], "<"), (layout["right_arrow"], ">")]:
             hover = arrow_rect.collidepoint(mouse_pos)
             color = GREEN if hover else GRAY
@@ -2107,12 +1683,11 @@ class Game:
         skin_name = self.tiny_font.render(CAR_SKINS[self.selected_skin]["name"], True, YELLOW)
         self.screen.blit(skin_name, (layout["right_panel"].centerx - skin_name.get_width() // 2, layout["right_panel"].y + 164))
 
-        garage_hint = self.tiny_font.render("Change vehicle in Garage", True, GRAY)
-        self.screen.blit(garage_hint, (layout["right_panel"].centerx - garage_hint.get_width() // 2, layout["right_panel"].y + 186))
+        best_text = self.tiny_font.render(f"Best Score: {self.best_score}", True, YELLOW)
+        self.screen.blit(best_text, (layout["right_panel"].centerx - best_text.get_width() // 2, layout["right_panel"].y + 186))
 
-        self.play_button.draw(self.screen, self.small_font)
-        self.garage_button.draw(self.screen, self.small_font)
-        self.high_score_button.draw(self.screen, self.tiny_font)
+        self.play_button.draw(self.screen, self.font)
+        self.high_score_button.draw(self.screen, self.small_font)
         self.exit_button.draw(self.screen, self.small_font)
 
         footer = pg.Surface(layout["footer_rect"].size, pg.SRCALPHA)
@@ -2132,206 +1707,8 @@ class Game:
             slot_x = layout["footer_rect"].x + index * slot_width + (slot_width - text.get_width()) // 2
             self.screen.blit(text, (slot_x, layout["footer_rect"].y + 16))
 
-        help_text = self.tiny_font.render("Arrow keys steer | G garage | P pause | R restart | H high scores", True, GRAY)
+        help_text = self.tiny_font.render("Arrow keys steer | P pause | R restart | H high scores", True, GRAY)
         self.screen.blit(help_text, (WIDTH // 2 - help_text.get_width() // 2, layout["footer_rect"].y + 42))
-
-    def get_garage_layout(self):
-        card_x = WIDTH // 2 - MENU_CARD_WIDTH // 2
-        card_y = 58
-
-        preview_rect = pg.Rect(WIDTH // 2 - 55, card_y + 120, 110, 120)
-        left_arrow = pg.Rect(card_x + 72, card_y + 162, 46, 42)
-        right_arrow = pg.Rect(card_x + MENU_CARD_WIDTH - 118, card_y + 162, 46, 42)
-
-        buy_button = pg.Rect(WIDTH // 2 - 120, card_y + 382, 240, 45)
-        select_button = pg.Rect(WIDTH // 2 - 120, card_y + 382, 240, 45)
-        back_button = pg.Rect(WIDTH // 2 - 95, card_y + 435, 190, 42)
-
-        return {
-            "card_x": card_x,
-            "card_y": card_y,
-            "preview_rect": preview_rect,
-            "left_arrow": left_arrow,
-            "right_arrow": right_arrow,
-            "buy_button": buy_button,
-            "select_button": select_button,
-            "back_button": back_button,
-        }
-
-    def sync_garage_button_rects(self, layout):
-        self.garage_buy_button.rect.topleft = layout["buy_button"].topleft
-        self.garage_buy_button.rect.size = layout["buy_button"].size
-
-        self.garage_select_button.rect.topleft = layout["select_button"].topleft
-        self.garage_select_button.rect.size = layout["select_button"].size
-
-        self.garage_back_button.rect.topleft = layout["back_button"].topleft
-        self.garage_back_button.rect.size = layout["back_button"].size
-
-    def handle_garage_click(self, mouse_pos):
-        layout = self.get_garage_layout()
-        self.sync_garage_button_rects(layout)
-
-        if layout["left_arrow"].collidepoint(mouse_pos):
-            self.garage_index = (self.garage_index - 1) % len(CAR_SKINS)
-            return
-
-        if layout["right_arrow"].collidepoint(mouse_pos):
-            self.garage_index = (self.garage_index + 1) % len(CAR_SKINS)
-            return
-
-        if self.garage_back_button.is_clicked(mouse_pos):
-            self.return_to_menu()
-            return
-
-        self._refresh_profile_from_save()
-        unlocked = self._get_unlocked_skin_indices()
-        is_unlocked = self.garage_index in unlocked
-        is_selected = self.garage_index == self.selected_skin
-
-        if not is_unlocked and self.garage_buy_button.is_clicked(mouse_pos):
-            success, message = buy_skin(self.garage_index)
-            self._refresh_profile_from_save()
-
-            if success:
-                self.garage_index = self.selected_skin
-                self.reset_game(change_state=False)
-
-            self.register_garage_message(message)
-            return
-
-        if is_unlocked and not is_selected and self.garage_select_button.is_clicked(mouse_pos):
-            success, message = select_skin(self.garage_index)
-            self._refresh_profile_from_save()
-
-            if success:
-                self.reset_game(change_state=False)
-
-            self.register_garage_message(message)
-            return
-
-    def draw_garage_screen(self):
-        self._refresh_profile_from_save()
-
-        card_x, card_y = self.draw_menu_shell(
-            "GARAGE",
-            "Buy, unlock, and select your vehicle.",
-        )
-
-        layout = self.get_garage_layout()
-        self.sync_garage_button_rects(layout)
-
-        skin = CAR_SKINS[self.garage_index]
-        unlocked = self._get_unlocked_skin_indices()
-
-        is_unlocked = self.garage_index in unlocked
-        is_selected = self.garage_index == self.selected_skin
-        price = skin.get("price", 0)
-
-        money_text = self.small_font.render(f"Money: {self.total_money}", True, GOLD)
-        self.screen.blit(
-            money_text,
-            (card_x + 38, card_y + 112),
-        )
-
-        preview_rect = layout["preview_rect"]
-        preview_bg = pg.Surface(preview_rect.size, pg.SRCALPHA)
-        preview_bg.fill((30, 30, 40, 210))
-        pg.draw.rect(
-            preview_bg,
-            (255, 255, 255, 40),
-            (0, 0, preview_rect.width, preview_rect.height),
-            2,
-            border_radius=12,
-        )
-        self.screen.blit(preview_bg, preview_rect.topleft)
-
-        preview_car = Car(
-            preview_rect.centerx - 25,
-            preview_rect.y + 14,
-            skin["color"],
-            True,
-            skin["type"],
-        )
-        preview_car.draw(self.screen)
-
-        mouse_pos = pg.mouse.get_pos()
-        for arrow_rect, symbol in [
-            (layout["left_arrow"], "<"),
-            (layout["right_arrow"], ">"),
-        ]:
-            hover = arrow_rect.collidepoint(mouse_pos)
-            color = GREEN if hover else GRAY
-            pg.draw.rect(self.screen, color, arrow_rect, border_radius=8)
-            pg.draw.rect(self.screen, WHITE, arrow_rect, 2, border_radius=8)
-            arrow_text = self.small_font.render(symbol, True, WHITE)
-            self.screen.blit(arrow_text, arrow_text.get_rect(center=arrow_rect.center))
-
-        name_text = self.small_font.render(skin["name"], True, YELLOW)
-        self.screen.blit(
-            name_text,
-            (WIDTH // 2 - name_text.get_width() // 2, card_y + 248),
-        )
-
-        info_lines = [
-            f"Type: {skin.get('type', 'sedan').title()}",
-            f"Price: {price if price > 0 else 'Free'}",
-            f"Speed Bonus: +{skin.get('speed_bonus', 0)}",
-            f"Handling Bonus: +{skin.get('handling_bonus', 0)}",
-        ]
-
-        start_y = card_y + 278
-        for index, line in enumerate(info_lines):
-            info_text = self.tiny_font.render(line, True, WHITE)
-            self.screen.blit(
-                info_text,
-                (WIDTH // 2 - info_text.get_width() // 2, start_y + index * 19),
-            )
-
-        if is_selected:
-            status = "SELECTED"
-            status_color = GREEN
-        elif is_unlocked:
-            status = "UNLOCKED"
-            status_color = CYAN
-        else:
-            status = "LOCKED"
-            status_color = RED
-
-        status_text = self.small_font.render(f"Status: {status}", True, status_color)
-        self.screen.blit(
-            status_text,
-            (WIDTH // 2 - status_text.get_width() // 2, card_y + 356),
-        )
-
-        if not is_unlocked:
-            self.garage_buy_button.text = "BUY"
-            if self.total_money < price:
-                self.garage_buy_button.text = "NOT ENOUGH MONEY"
-            self.garage_buy_button.draw(self.screen, self.tiny_font)
-        elif not is_selected:
-            self.garage_select_button.text = "SELECT"
-            self.garage_select_button.draw(self.screen, self.small_font)
-
-        self.garage_back_button.text = "BACK"
-        self.garage_back_button.draw(self.screen, self.small_font)
-
-        if self.garage_message and pg.time.get_ticks() < self.garage_message_until:
-            message_text = self.tiny_font.render(self.garage_message, True, YELLOW)
-            self.screen.blit(
-                message_text,
-                (WIDTH // 2 - message_text.get_width() // 2, card_y + 482),
-            )
-
-        help_text = self.tiny_font.render(
-            "Use arrows or click < > to browse vehicles.",
-            True,
-            GRAY,
-        )
-        self.screen.blit(
-            help_text,
-            (WIDTH // 2 - help_text.get_width() // 2, card_y + 505),
-        )
 
     def draw_high_score_screen(self):
         self.save_data = load_save_data()
@@ -2378,7 +1755,7 @@ class Game:
         pulse = int(5 * abs(math.sin(self.score_animation)))
 
         hud_width = 236
-        hud_height = 448
+        hud_height = 394
         hud_bg = pg.Surface((hud_width, hud_height), pg.SRCALPHA)
         hud_bg.fill((10, 14, 22, 208))
         pg.draw.rect(hud_bg, (255, 255, 255, 50 + pulse), (0, 0, hud_width, hud_height), 3, border_radius=14)
@@ -2404,19 +1781,22 @@ class Game:
         distance_text = self.small_font.render(f"Distance: {int(self.distance)} m", True, WHITE)
         self.screen.blit(distance_text, (24, 104))
 
-        # Show distance-to-finish for the current stage.
+        # Show distance-to-finish for the current stage (place above Track Watch)
         cfg = getattr(self, "current_stage_config", None)
-        finish_line = None
         if cfg:
             remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
-            finish_line = f"To Finish: {remaining} m"
+            finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
+            # Track Watch section begins around y=262; place the finish text just above it
+            track_watch_top = 262
+            finish_y = track_watch_top - 28
+            self.screen.blit(finish_text, (24, finish_y))
 
         lives_label = self.small_font.render("Lives:", True, WHITE)
         self.screen.blit(lives_label, (24, 132))
 
         for i in range(self.lives):
-            heart_x = 104 + i * 28
-            heart_y = 144
+            heart_x = 108 + i * 30
+            heart_y = 150
             heart_points = []
 
             for angle in range(0, 360, 10):
@@ -2435,15 +1815,6 @@ class Game:
         except Exception:
             road_type, safe_speed, high_risk_speed = None, None, None
 
-<<<<<<< HEAD
-=======
-        weather_lines = []
-        try:
-            road_type, safe_speed, high_risk_speed = self.weather.get_active_speed_limits(self.selected_difficulty)
-        except Exception:
-            road_type, safe_speed, high_risk_speed = None, None, None
-
->>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         if road_type and safe_speed is not None and high_risk_speed is not None:
             weather_lines.append(f"{road_type} Safe: {safe_speed:.0f}  Risk: {high_risk_speed:.0f} km/h")
 
@@ -2456,7 +1827,6 @@ class Game:
             fog_trigger = self.weather.get_fog_speed_trigger(self.selected_difficulty)
             weather_lines.append(f"Fog drift: > {fog_trigger:.0f} km/h")
 
-<<<<<<< HEAD
         active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         visible_status_count = max(1, min(3, len(active_statuses)))
         legend_card_width = 188
@@ -2473,8 +1843,8 @@ class Game:
             "Track Watch",
             "Active",
         ]
-        if finish_line:
-            dynamic_texts.append(finish_line)
+        if self.finish_sign is not None:
+            dynamic_texts.append("Finish sign active")
         dynamic_texts.extend(weather_lines[:2])
 
         max_text_width = 0
@@ -2500,26 +1870,23 @@ class Game:
         for idx, line in enumerate(weather_lines[:2]):
             info = self.tiny_font.render(line, True, CYAN)
             self.screen.blit(info, (24, 176 + idx * 16))
-        
-=======
-        for idx, line in enumerate(weather_lines[:2]):
-            info = self.tiny_font.render(line, True, CYAN)
-            self.screen.blit(info, (24, 176 + idx * 16))
 
->>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
         mode_text = self.tiny_font.render(f"Mode: {self.selected_difficulty}", True, YELLOW)
         self.screen.blit(mode_text, (24, 200))
-
-        vehicle_name = CAR_SKINS[self.selected_skin]["name"]
-        if len(vehicle_name) > 16:
-            vehicle_name = vehicle_name[:15] + "."
-        vehicle_text = self.tiny_font.render(f"Vehicle: {vehicle_name}", True, CYAN)
-        self.screen.blit(vehicle_text, (24, 220))
 
         display_money = self.total_money
 
         if self.state != GameState.GAME_OVER:
-            display_money = max(0, display_money + self.current_level_money)
+            display_money = max(0, display_money + int(getattr(self, 'current_level_money', 0)))
+
+        # Defensive UI: for a fresh Level 1 start show 100 money so the
+        # player sees the intended starting wallet even if save data still
+        # contains a different value.
+        try:
+            if self.stage == 1 and self.current_level_money == 0 and getattr(self, 'stage_progress_distance', 0) < 1:
+                display_money = 100
+        except Exception:
+            pass
 
 
 
@@ -2528,14 +1895,14 @@ class Game:
             True,
             GOLD,
         )
-        self.screen.blit(money_text, (24, 246))
+        self.screen.blit(money_text, (24, 220))
 
         popup_age = pg.time.get_ticks() - self.money_popup_start_time
         popup_duration = 950
 
         if self.money_popup_amount > 0 and popup_age < popup_duration:
             progress = popup_age / popup_duration
-            popup_y = 246 - int(progress * 20)
+            popup_y = 220 - int(progress * 20)
             popup_alpha = max(0, 255 - int(progress * 220))
 
             popup_sign = "+" if self.money_popup_amount >= 0 else "-"
@@ -2586,16 +1953,10 @@ class Game:
         if self.score_multiplier > 1.0:
             multiplier_color = YELLOW if self.score_multiplier >= 2.0 else GREEN
             multiplier_text = self.tiny_font.render(f"Multiplier: x{self.score_multiplier:.1f}", True, multiplier_color)
-            self.screen.blit(multiplier_text, (24, 266))
+            self.screen.blit(multiplier_text, (24, 240))
 
-        if finish_line:
-            finish_y = 284 if self.score_multiplier > 1.0 else 268
-            finish_text = self.tiny_font.render(finish_line, True, WHITE)
-            self.screen.blit(finish_text, (24, finish_y))
-
-        section_title_y = 304 if (finish_line and self.score_multiplier > 1.0) else 296
         section_title = self.tiny_font.render("Track Watch", True, WHITE)
-        self.screen.blit(section_title, (24, section_title_y))
+        self.screen.blit(section_title, (24, 262))
 
         legend_items = [
             ("Oil", "drift", (210, 210, 220)),
@@ -2605,10 +1966,10 @@ class Game:
         ]
         for index, (label, effect, color) in enumerate(legend_items):
             card_x = 24
-            card_y = (326 if (finish_line and self.score_multiplier > 1.0) else 318) + index * 22
+            card_y = 284 + index * 22
             card = pg.Surface((188, 20), pg.SRCALPHA)
             card.fill((255, 255, 255, 12))
-            pg.draw.rect(card, (*color, 92), (0, 0, legend_card_width, 20), 1, border_radius=8)
+            pg.draw.rect(card, (*color, 92), (0, 0, 188, 20), 1, border_radius=8)
             pg.draw.circle(card, color, (10, 10), 4)
             label_text = self.tiny_font.render(label, True, WHITE)
             effect_text = self.tiny_font.render(effect, True, color)
@@ -2616,17 +1977,16 @@ class Game:
             card.blit(effect_text, (18 + label_text.get_width() + 6, 2))
             self.screen.blit(card, (card_x, card_y))
 
+        active_statuses = self.get_active_hazard_statuses(pg.time.get_ticks())
         status_title = self.tiny_font.render("Active", True, YELLOW)
-        self.screen.blit(status_title, (24, 418))
+        self.screen.blit(status_title, (24, 376))
         if active_statuses:
             for index, (label, color) in enumerate(active_statuses[:3]):
-                badge = pg.Surface((legend_card_width, 18), pg.SRCALPHA)
+                badge = pg.Surface((188, 18), pg.SRCALPHA)
                 badge.fill((255, 255, 255, 10))
-                pg.draw.rect(badge, (*color, 90), (0, 0, legend_card_width, 18), 1, border_radius=8)
+                pg.draw.rect(badge, (*color, 90), (0, 0, 188, 18), 1, border_radius=8)
                 status_text = self.tiny_font.render(label, True, color)
                 badge.blit(status_text, (8, 2))
-<<<<<<< HEAD
-<<<<<<< HEAD
                 self.screen.blit(badge, (24, 398 + index * 16))
             else:
                 badge = pg.Surface((188, 18), pg.SRCALPHA)
@@ -2692,76 +2052,6 @@ class Game:
             self.screen.blit(panel, (panel_x, panel_y))
             self.pause_button.draw(self.screen, self.tiny_font)
             self.sound_button.draw(self.screen, self.tiny_font)
-=======
-                self.screen.blit(badge, (24, 432 + index * 16))
-=======
-                self.screen.blit(badge, (24, 440 + index * 16))
->>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
-        else:
-            badge = pg.Surface((legend_card_width, 18), pg.SRCALPHA)
-            badge.fill((255, 255, 255, 10))
-            pg.draw.rect(badge, (*GREEN, 90), (0, 0, legend_card_width, 18), 1, border_radius=8)
-            status_text = self.tiny_font.render("Road stable", True, GREEN)
-            badge.blit(status_text, (8, 2))
-<<<<<<< HEAD
-            self.screen.blit(badge, (24, 432))
->>>>>>> e19a521 (Add garage vehicle progression system)
-=======
-            self.screen.blit(badge, (24, 440))
->>>>>>> 5b18a38 (Add weather system updates and fix restart/HUD issues)
-
-    def draw_top_right_hud(self):
-        panel_width = 226
-        panel_height = 112
-        panel_x = WIDTH - panel_width - 14
-        panel_y = 12
-
-        self.pause_button.rect.topleft = (panel_x + 122, panel_y + 10)
-        self.pause_button.rect.size = (92, 30)
-        self.sound_button.rect.topleft = (panel_x + 122, panel_y + 48)
-        self.sound_button.rect.size = (92, 30)
-
-        panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
-        panel.fill((8, 14, 24, 220))
-        pg.draw.rect(panel, (255, 255, 255, 42), (0, 0, panel_width, panel_height), 2, border_radius=16)
-
-        speed_text = self.tiny_font.render(f"Speed {self.display_speed:.1f} km/h", True, WHITE)
-        panel.blit(speed_text, (14, 14))
-
-        label = self.tiny_font.render("Nitro", True, (175, 235, 255))
-        panel.blit(label, (14, 40))
-
-        bar_rect = pg.Rect(14, 62, 96, 15)
-        pg.draw.rect(panel, (24, 34, 48), bar_rect, border_radius=7)
-        fill_width = int(bar_rect.width * (self.nitro_charge / max(1.0, NITRO_MAX_CHARGE)))
-        if fill_width > 0:
-            fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
-            bar_color = (64, 220, 255) if not self.nitro_active else (255, 170, 72)
-            pg.draw.rect(panel, bar_color, fill_rect, border_radius=7)
-        pg.draw.rect(panel, (210, 245, 255), bar_rect, 2, border_radius=7)
-
-        if self.nitro_active:
-            status = "Boost active"
-            status_color = (255, 190, 92)
-        elif pg.time.get_ticks() < self.nitro_cooldown_until:
-            remaining = max(0.0, (self.nitro_cooldown_until - pg.time.get_ticks()) / 1000.0)
-            status = f"Cooldown {remaining:.1f}s"
-            status_color = YELLOW
-        elif self.nitro_charge >= NITRO_MIN_ACTIVATION:
-            status = "SPACE / SHIFT"
-            status_color = GREEN
-        else:
-            status = "Collect nitro"
-            status_color = GRAY
-
-        status_text = self.tiny_font.render(status, True, status_color)
-        charge_text = self.tiny_font.render(f"{int(self.nitro_charge)}%", True, WHITE)
-        panel.blit(status_text, (14, 86))
-        panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 86))
-
-        self.screen.blit(panel, (panel_x, panel_y))
-        self.pause_button.draw(self.screen, self.tiny_font)
-        self.sound_button.draw(self.screen, self.tiny_font)
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
@@ -2788,14 +2078,6 @@ class Game:
                     y += y_offset
                     multiplier_str = f"x{self.score_multiplier:.1f}!"
                     color = YELLOW if self.score_multiplier >= 2.0 else GREEN
-
-                  
-                    text_probe = self.small_font.render(multiplier_str, True, color)
-                    half_w = text_probe.get_width() // 2
-                    min_x = 10 + 236 + 18 + half_w
-                    max_x = WIDTH - 10 - half_w
-                    x = max(min_x, min(int(x), max_x))
-                    y = max(10, min(int(y), HEIGHT - 10))
 
                     for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
                         glow_text = self.small_font.render(
@@ -2883,22 +2165,13 @@ class Game:
         self.sync_game_over_button_rects()
 
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-        overlay.fill((0, 0, 0, 220))
+        overlay.fill((0, 0, 0, 200))
         self.screen.blit(overlay, (0, 0))
 
-<<<<<<< HEAD
-        
         checkpoint_stage = self.get_checkpoint_stage()
 
         box_width = 470
         box_height = 400
-=======
-        has_checkpoint = self.has_checkpoint()
-        checkpoint_stage = self.get_checkpoint_stage()
-
-        box_width = 470
-        box_height = 470 if has_checkpoint else 400
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         box_left = WIDTH // 2 - box_width // 2
         box_top = HEIGHT // 2 - box_height // 2
 
@@ -2909,62 +2182,33 @@ class Game:
         self.screen.blit(box, (box_left, box_top))
 
         title = self.font.render("GAME OVER", True, RED)
-        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, box_top + 34))
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 170))
 
         score = self.small_font.render(f"Final Score: {self.score}", True, WHITE)
-        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, box_top + 88))
+        self.screen.blit(score, (WIDTH // 2 - score.get_width() // 2, HEIGHT // 2 - 120))
 
         stage = self.small_font.render(f"Reached Level: {self.stage}", True, CYAN)
-        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, box_top + 118))
+        self.screen.blit(stage, (WIDTH // 2 - stage.get_width() // 2, HEIGHT // 2 - 90))
 
-<<<<<<< HEAD
-        
         money_sign = "+" if self.current_level_money >= 0 else "-"
         money = self.small_font.render(f"Money Earned: {money_sign}{abs(self.current_level_money)}", True, GOLD)
-=======
-        money = self.small_font.render(f"Money Earned: +{self.session_money}", True, GOLD)
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         self.screen.blit(money, (WIDTH // 2 - money.get_width() // 2, box_top + 148))
 
-        info_y = box_top + 181
         if self.is_new_high_score:
             high_score = self.small_font.render("NEW HIGH SCORE!", True, YELLOW)
-            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, info_y))
-            info_y += 28
+            self.screen.blit(high_score, (WIDTH // 2 - high_score.get_width() // 2, HEIGHT // 2 - 35))
 
-<<<<<<< HEAD
-        # Inform the player how Restart behaves: it will resume the same level.
-        hint = self.tiny_font.render("Press R to restart (resumes current level).", True, GRAY)
+        # Inform the player how Restart behaves: it will resume the run's
+        # starting level (so a run that began at Level 8 restarts at 8).
+        hint = self.tiny_font.render("Press R to restart (resumes starting level).", True, GRAY)
         try:
             info_y = box_top + 6
         except Exception:
             info_y = HEIGHT // 2 + 6
         self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 6))
-=======
-        if has_checkpoint:
-            checkpoint_text = self.tiny_font.render(
-                f"Continue unlocked: Level {checkpoint_stage}",
-                True,
-                GREEN,
-            )
-            self.screen.blit(
-                checkpoint_text,
-                (WIDTH // 2 - checkpoint_text.get_width() // 2, info_y),
-            )
 
-            hint = self.tiny_font.render("Restart starts again from Level 1.", True, GRAY)
-            self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 21))
-
-            self.game_over_continue_button.text = f"CONTINUE LEVEL {checkpoint_stage}"
-            self.game_over_continue_button.draw(self.screen, self.tiny_font)
-        else:
-            hint = self.tiny_font.render("Press R to restart or use the buttons below.", True, GRAY)
-            self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, info_y + 6))
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
-
+        # Only show Restart on Game Over as requested.
         self.game_over_restart_button.draw(self.screen, self.small_font)
-        self.game_over_menu_button.draw(self.screen, self.small_font)
-        self.game_over_quit_button.draw(self.screen, self.small_font)
 
     def draw_stage_complete_screen(self):
         # Map-style level transition animation
@@ -2975,11 +2219,7 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
         # card
-<<<<<<< HEAD
         card_w, card_h = 760, 470
-=======
-        card_w, card_h = 760, 410
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         card = pg.Surface((card_w, card_h), pg.SRCALPHA)
         card.fill((14, 18, 24, 230))
         pg.draw.rect(card, (255, 255, 255, 28), (6, 6, card_w - 12, card_h - 12), 2, border_radius=20)
@@ -2989,16 +2229,11 @@ class Game:
         subtitle = self.small_font.render(f"Level {self.completed_stage or self.stage} finished — next: Level { (self.completed_stage or self.stage) + 1 }", True, WHITE)
         card.blit(subtitle, (34, 74))
 
-<<<<<<< HEAD
         reward_panel = pg.Surface((card_w - 68, 86), pg.SRCALPHA)
-=======
-        reward_panel = pg.Surface((card_w - 68, 48), pg.SRCALPHA)
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         reward_panel.fill((255, 255, 255, 12))
         pg.draw.rect(reward_panel, (255, 214, 90, 90), reward_panel.get_rect(), 2, border_radius=14)
 
         reward_title = self.tiny_font.render("Stage Rewards", True, GOLD)
-<<<<<<< HEAD
         coin_text = self.tiny_font.render(
             f"Coins: {self.stage_coin_count} picked up (+{self.stage_coin_money} money)",
             True,
@@ -3032,25 +2267,10 @@ class Game:
         reward_panel.blit(score_text, (460, 31))
         reward_panel.blit(checkpoint_note, (18, 55))
         card.blit(reward_panel, (34, 104))
-        
+
         # map area
         map_x, map_y = 34, 200
         map_w, map_h = card_w - 68, 190
-=======
-        reward_score = self.tiny_font.render(f"Score Bonus: +{self.last_stage_score_bonus}", True, WHITE)
-        reward_money = self.tiny_font.render(f"Money Bonus: +{self.last_stage_money_bonus}", True, GREEN)
-        checkpoint_note = self.tiny_font.render(f"Checkpoint unlocked: Level {(self.completed_stage or self.stage) + 1}", True, CYAN)
-
-        reward_panel.blit(reward_title, (18, 7))
-        reward_panel.blit(reward_score, (170, 7))
-        reward_panel.blit(reward_money, (330, 7))
-        reward_panel.blit(checkpoint_note, (500, 7))
-        card.blit(reward_panel, (34, 104))
-
-        # map area
-        map_x, map_y = 34, 150
-        map_w, map_h = card_w - 68, 200
->>>>>>> 9fcaeed (Improve stage completion, checkpoint, and damage feedback)
         map_rect = pg.Rect(map_x, map_y, map_w, map_h)
         # subtle panel
         panel = pg.Surface((map_w, map_h), pg.SRCALPHA)
@@ -3136,7 +2356,7 @@ class Game:
         hint = self.tiny_font.render("Press Enter or Space to continue", True, WHITE)
         card.blit(hint, (card_w - hint.get_width() - 34, card_h - 46))
 
-        footer = self.tiny_font.render("Checkpoint saved. Continue from your latest reached level after game over.", True, CYAN)
+        footer = self.tiny_font.render("Map shows nearby levels; progress on next run continues.", True, CYAN)
         card.blit(footer, (34, card_h - 46))
 
         self.screen.blit(card, (WIDTH // 2 - card_w // 2, HEIGHT // 2 - card_h // 2))
@@ -3273,7 +2493,6 @@ def dev_run_stage_test():
     g.reset_game()
     print("After reset: stage", g.stage, "stage_progress_distance", int(g.stage_progress_distance), "finish_sign", g.finish_sign is not None)
 
-
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Developer runner for game module")
@@ -3289,4 +2508,3 @@ if __name__ == "__main__":
         pg.init()
         pg.mixer.init()
         Game().run()
-

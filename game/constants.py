@@ -41,6 +41,10 @@ COLLISION_MONEY_PENALTY_STAGE_STEP = 55
 ECONOMY_DISTANCE_REWARD_STEP = 500
 ECONOMY_DISTANCE_REWARD_MONEY = 10
 ECONOMY_STAGE_REWARD_MONEY = 100
+# Maximum reasonable saved money to prevent runaway values from legacy bugs.
+# Any saved `total_money` or `last_successful_total_money` above this will be
+# clamped when loading the save.
+MAX_SANE_TOTAL_MONEY = 3999
 COIN_SPAWN_BASE_INTERVAL = {
     "Easy": 1600,
     "Medium": 1900,
