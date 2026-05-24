@@ -1,0 +1,48 @@
+name: Bug Report
+description: Something not working right here..
+labels: "bug"
+assignees: "TheM1ddleM1n"
+body:
+  - type: input
+    attributes:
+      description: The name of the file that has the bug.
+      placeholder: atari.py
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to Reproduce
+      description: How do we make the bug happen?
+      placeholder: |
+        1. x took place
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+      placeholder: |
+        It should run smoothly
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: |
+        The game randomly crashed.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Error Output
+      description: Paste any error messages from your terminal or wherever you are running this.
+  - type: input
+    attributes:
+      label: Environment
+      description: Your OS and Python version (run `python --version`)
+      placeholder: ie. Windows 11, python 3.12
+  - type: textarea
+    attributes:
+      label: Additional Information
+      description: "Anything else that might help. Pro tip: 'please fix this bug' will NOT help."
