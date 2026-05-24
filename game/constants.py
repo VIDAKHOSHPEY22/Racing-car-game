@@ -8,47 +8,61 @@ MENU_CARD_WIDTH = 560
 MENU_CARD_HEIGHT = 500
 
 SAVE_FILE_NAME = "save_data.json"
-
-COIN_RADIUS = 12
 COIN_SCORE_VALUE = 5
 COIN_MONEY_VALUE = 10
-COIN_MAX_ACTIVE = {
-    "Easy": 3,
-    "Medium": 4,
-    "Hard": 5,
-}
+COIN_RED_MONEY_VALUE = 75
+COIN_RADIUS = 12
+COIN_RED_RADIUS = 15
 COIN_CHAIN_LENGTH = 3
-COIN_CHAIN_VERTICAL_SPACING = 72
-COIN_SPAWN_BASE_INTERVAL = {
-    "Easy": 2200,
-    "Medium": 1850,
-    "Hard": 1500,
-}
-COIN_SPAWN_MIN_INTERVAL = 900
-COIN_SPAWN_STAGE_STEP = 65
+COIN_CHAIN_VERTICAL_SPACING = 58
 COIN_CHAIN_SPAWN_BASE_CHANCE = {
     "Easy": 0.08,
     "Medium": 0.10,
     "Hard": 0.12,
 }
-COIN_CHAIN_SPAWN_STAGE_STEP = 0.015
-COIN_CHAIN_SPAWN_MAX_CHANCE = 0.28
+COIN_CHAIN_SPAWN_STAGE_STEP = 0.01
+COIN_CHAIN_SPAWN_MAX_CHANCE = 0.22
 COIN_RED_SPAWN_BASE_CHANCE = {
-    "Easy": 0.02,
-    "Medium": 0.03,
-    "Hard": 0.04,
+    "Easy": 0.025,
+    "Medium": 0.035,
+    "Hard": 0.035,
 }
-COIN_RED_SPAWN_STAGE_STEP = 0.01
-COIN_RED_SPAWN_MAX_CHANCE = 0.12
+COIN_RED_SPAWN_STAGE_STEP = 0.005
+COIN_RED_SPAWN_MAX_CHANCE = 0.09
 OBSTACLE_PASS_SCORE = 1
+
+# Collision economy: each damaging car collision reduces money based on stage.
+# Stage 1 => 40, Stage 2 => 95, Stage 3 => 150, ...
+COLLISION_MONEY_PENALTY_BASE = 40
+COLLISION_MONEY_PENALTY_STAGE_STEP = 55
+
+# Economy tuning values. Keep them data-driven so later stages / weather can
+# adjust rewards without touching the gameplay loop.
+ECONOMY_DISTANCE_REWARD_STEP = 500
+ECONOMY_DISTANCE_REWARD_MONEY = 10
+ECONOMY_STAGE_REWARD_MONEY = 100
+# Maximum reasonable saved money to prevent runaway values from legacy bugs.
+# Any saved `total_money` or `last_successful_total_money` above this will be
+# clamped when loading the save.
+MAX_SANE_TOTAL_MONEY = 3999
+COIN_SPAWN_BASE_INTERVAL = {
+    "Easy": 1600,
+    "Medium": 1900,
+    "Hard": 2200,
+}
+COIN_SPAWN_STAGE_STEP = 90
+COIN_SPAWN_MIN_INTERVAL = 850
+COIN_MAX_ACTIVE = {
+    "Easy": 3,
+    "Medium": 2,
+    "Hard": 2,
+}
+
 # Stage completion reward system
 STAGE_CLEAR_SCORE_BONUS = 25
 STAGE_CLEAR_MONEY_BONUS = 8
 STAGE_LEVEL_SCORE_MULTIPLIER = 10
 STAGE_LEVEL_MONEY_MULTIPLIER = 2
-ECONOMY_DISTANCE_REWARD_STEP = 250
-ECONOMY_DISTANCE_REWARD_MONEY = 20
-ECONOMY_STAGE_REWARD_MONEY = 100
 TRACK_OBJECT_WEIGHTS = {
     "Easy": {
         "car": 74,
@@ -232,8 +246,8 @@ STAGE_DEFINITIONS = {
         "stage_id": 1,
         "distance_target": 560,  # meters to reach finish line
         "enemy_speed_multiplier": 0.9,
-        "obstacle_frequency": 2400,
-        "traffic_density": 0.6,  # 0..1 relative density
+        "obstacle_frequency": 2250,
+        "traffic_density": 0.72,  # 0..1 relative density
         "future_weather_slot": None,
         "future_environment_flags": [],
         "finish_pass_buffer": 8,  # extra meters to cross finish line
@@ -242,8 +256,8 @@ STAGE_DEFINITIONS = {
         "stage_id": 2,
         "distance_target": 900,
         "enemy_speed_multiplier": 1.04,
-        "obstacle_frequency": 2050,
-        "traffic_density": 0.68,
+        "obstacle_frequency": 1900,
+        "traffic_density": 0.8,
         "future_weather_slot": None,
         "future_environment_flags": [],
         "finish_pass_buffer": 8,
@@ -252,8 +266,8 @@ STAGE_DEFINITIONS = {
         "stage_id": 3,
         "distance_target": 1220,
         "enemy_speed_multiplier": 1.14,
-        "obstacle_frequency": 1700,
-        "traffic_density": 0.78,
+        "obstacle_frequency": 1560,
+        "traffic_density": 0.88,
         "future_weather_slot": None,
         "future_environment_flags": [],
         "finish_pass_buffer": 10,
@@ -262,8 +276,8 @@ STAGE_DEFINITIONS = {
         "stage_id": 4,
         "distance_target": 1600,
         "enemy_speed_multiplier": 1.24,
-        "obstacle_frequency": 1500,
-        "traffic_density": 0.86,
+        "obstacle_frequency": 1360,
+        "traffic_density": 0.95,
         "future_weather_slot": None,
         "future_environment_flags": [],
         "finish_pass_buffer": 10,
@@ -287,7 +301,6 @@ MAX_SPEED = 120.0     # max allowed player speed
 BRAKE_DECEL = 40.0
 # Health system
 DAMAGE_COOLDOWN = 1500  # milliseconds
-
 
 WEATHER_SPEED_LIMIT_RATIOS = {
     "rain": {
@@ -324,6 +337,7 @@ WEATHER_BASE_PARTICLES = {
 }
 
 WEATHER_ALERT_DURATION = 2600
+
 # Nitro system tuning
 NITRO_MAX_CHARGE = 100.0
 NITRO_PICKUP_CHARGE = 34.0
