@@ -8,6 +8,7 @@ import pygame as pg
 from .button import Button
 from .car import Car
 from .coin import Coin
+from .nitro import NitroPickup
 from .constants import (
     ACCELERATION,
     FRICTION,
@@ -46,6 +47,7 @@ from .constants import (
     MENU_CARD_HEIGHT,
     MENU_CARD_WIDTH,
     NAVY,
+        ORANGE,
       STAGE_DEFINITIONS,
     TRACK_OBJECT_WEIGHTS,
     PLAYER_START_LIVES,
@@ -124,6 +126,7 @@ from .storage import (
     read_high_score,
     update_progress,
     save_player_preferences,
+    save_save_data,
 )
 from . import constants as const
 from .game_state import GameState
@@ -241,6 +244,16 @@ class Game:
         self.player = None
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
+        self.nitro_charge = 0.0
+        self.nitro_display_charge = 0.0
+        self.nitro_display_pulse = 0.0
+        self.nitro_display_mode = None
+        self.nitro_active = False
+        self.nitro_cooldown_until = 0
+        self.nitro_speed_bonus = 0.0
+        self.motion_multiplier = 1.0
+        self.last_nitro_time = -int(getattr(const, "NITRO_SPAWN_INTERVAL", 6800))
         self.road = None
         self.last_obstacle_time = 0
         self.last_coin_time = 0
@@ -251,12 +264,15 @@ class Game:
         self.best_score = self.save_data.get("high_score", read_high_score())
         self.current_level_money = 0
         self.is_new_high_score = False
+        self.garage_message = ""
+        self.garage_message_until = 0
 
         self.money_popup_amount = 0
         self.money_popup_start_time = 0
 
         self.play_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 120, 200, 60, "START RACE")
         self.high_score_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 190, 200, 45, "HIGH SCORES")
+        self.garage_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 260, 200, 32, "GARAGE")
         self.menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 250, 200, 45, "MAIN MENU")
         self.exit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 310, 200, 45, "EXIT")
         self.pause_button = Button(WIDTH - 120, 10, 100, 40, "PAUSE")
@@ -265,6 +281,8 @@ class Game:
         self.game_over_restart_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 40, 200, 45, "RESTART")
         self.game_over_menu_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 45, "MAIN MENU")
         self.game_over_quit_button = Button(WIDTH // 2 - 100, HEIGHT // 2 + 160, 200, 45, "QUIT")
+        self.garage_action_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 300, 220, 45, "SELECT / BUY")
+        self.garage_back_button = Button(WIDTH // 2 - 110, HEIGHT // 2 + 355, 220, 45, "MAIN MENU")
         self.sound_button = Button(WIDTH - 120, 55, 100, 35, "SOUND: ON")
 
         self.current_music = load_music()
@@ -352,6 +370,55 @@ class Game:
         self.garage_message = message
         self.garage_message_until = pg.time.get_ticks() + duration
 
+    def _is_skin_unlocked(self, skin_index):
+        try:
+            unlocked = self._get_unlocked_skin_indices()
+            return int(skin_index) in unlocked
+        except Exception:
+            return False
+
+    def save_garage_progress(self):
+        self.save_data = dict(getattr(self, "save_data", {}))
+        unlocked = self._get_unlocked_skin_indices()
+        if self.selected_skin not in unlocked:
+            unlocked.append(int(self.selected_skin))
+
+        self.save_data["selected_skin"] = int(self.selected_skin)
+        self.save_data["selected_difficulty"] = self.selected_difficulty
+        self.save_data["unlocked_skins"] = sorted(set(unlocked))
+        self.save_data["total_money"] = max(0, int(getattr(self, "total_money", 0)))
+        self.save_data = save_save_data(self.save_data)
+
+    def open_garage(self):
+        self._sync_player_skin()
+        self.save_garage_progress()
+        self.register_garage_message("Garage opened", 900)
+        self.set_state(GameState.GARAGE)
+
+    def _buy_or_select_current_skin(self, current_time=None):
+        skin = CAR_SKINS[self.selected_skin]
+        unlocked = self._get_unlocked_skin_indices()
+        skin_price = int(skin.get("price", 0))
+        skin_name = skin.get("name", "Skin")
+
+        if self.selected_skin in unlocked:
+            self._sync_player_skin()
+            self.save_garage_progress()
+            self.register_garage_message(f"{skin_name} selected", 1200)
+            return True
+
+        if self.total_money < skin_price:
+            self.register_garage_message(f"Need {skin_price} money", 1500)
+            return False
+
+        self.total_money = max(0, int(self.total_money) - skin_price)
+        unlocked.append(self.selected_skin)
+        self.save_data["unlocked_skins"] = sorted(set(unlocked))
+        self._sync_player_skin()
+        self.save_garage_progress()
+        self.register_garage_message(f"{skin_name} unlocked", 1400)
+        return True
+
     def get_checkpoint_stage(self):
         try:
             checkpoint_stage = int(self.stage)
@@ -395,6 +462,15 @@ class Game:
         self.obstacles = []
         self.coins = []
         self.nitro_pickups = []
+        self.nitro_charge = 0.0
+        self.nitro_display_charge = 0.0
+        self.nitro_display_pulse = 0.0
+        self.nitro_display_mode = None
+        self.nitro_active = False
+        self.nitro_cooldown_until = 0
+        self.nitro_speed_bonus = 0.0
+        self.motion_multiplier = 1.0
+        self.last_nitro_time = -int(getattr(const, "NITRO_SPAWN_INTERVAL", 6800))
 
         # Determine starting stage:
         # - If an explicit `start_stage` is provided, use it.
@@ -450,9 +526,9 @@ class Game:
         self.base_speed = diff_settings["base_speed"]
         # apply difficulty-specific max speed at runtime so `Car.accelerate` clamps correctly
         try:
-            import game.constants as const
+            import game.constants as game_constants
 
-            const.MAX_SPEED = float(diff_settings.get("max_speed", const.MAX_SPEED))
+            game_constants.MAX_SPEED = float(diff_settings.get("max_speed", game_constants.MAX_SPEED))
         except Exception:
             pass
         self.current_speed = self.base_speed
@@ -504,6 +580,10 @@ class Game:
             return
         try:
             self.nitro_active = False
+            self.nitro_speed_bonus = 0.0
+            self.motion_multiplier = 1.0
+            if self.player is not None and hasattr(self.player, "max_speed_bonus"):
+                self.player.max_speed_bonus = 0.0
             if start_cooldown:
                 now = int(current_time or pg.time.get_ticks())
                 # use configured cooldown if present, otherwise default 3000ms
@@ -511,6 +591,91 @@ class Game:
         except Exception:
             # be tolerant in tests and gameplay
             pass
+
+    def activate_nitro_boost(self, current_time=None):
+        if current_time is None:
+            current_time = pg.time.get_ticks()
+
+        if getattr(self, "nitro_active", False):
+            return False
+        if current_time < getattr(self, "nitro_cooldown_until", 0):
+            return False
+        if getattr(self, "nitro_charge", 0.0) < float(getattr(const, "NITRO_MIN_ACTIVATION", 30.0)):
+            return False
+
+        self.nitro_active = True
+        self.nitro_speed_bonus = float(getattr(const, "NITRO_MAX_SPEED_BONUS", 24.0))
+        if self.player is not None and hasattr(self.player, "max_speed_bonus"):
+            self.player.max_speed_bonus = self.nitro_speed_bonus
+        self.register_status_message("Nitro boost active", current_time, duration=1000)
+        return True
+
+    def update_nitro_boost(self, current_time, dt):
+        pulse = max(0.0, float(getattr(self, "nitro_display_pulse", 0.0)))
+        current_display = float(getattr(self, "nitro_display_charge", 0.0))
+        target_display = float(getattr(self, "nitro_charge", 0.0))
+        decay_rate = float(getattr(const, "NITRO_VISUAL_DECAY_PER_SECOND", 26.0))
+        mode = getattr(self, "nitro_display_mode", None)
+        if mode == "decay":
+            # Force a steady visual decrease toward the real nitro charge.
+            new_display = current_display - decay_rate * dt
+            if new_display <= target_display:
+                self.nitro_display_charge = target_display
+                self.nitro_display_mode = None
+                self.nitro_display_pulse = 0.0
+            else:
+                self.nitro_display_charge = new_display
+                self.nitro_display_pulse = max(0.0, pulse - 3.2 * dt)
+        else:
+            # Normal blending when not in forced-decay mode.
+            self.nitro_display_charge = target_display + (current_display - target_display) * min(1.0, 7.0 * dt)
+
+        if not getattr(self, "nitro_active", False):
+            return
+
+        drain = float(getattr(const, "NITRO_DRAIN_PER_SECOND", 32.0)) * dt
+        self.nitro_charge = max(0.0, float(getattr(self, "nitro_charge", 0.0)) - drain)
+
+        if self.player is not None and hasattr(self.player, "accelerate"):
+            self.player.accelerate(float(getattr(const, "NITRO_BOOST_ACCEL", 78.0)) * dt)
+            if hasattr(self.player, "max_speed_bonus"):
+                self.player.max_speed_bonus = float(getattr(const, "NITRO_MAX_SPEED_BONUS", 24.0))
+
+        if self.nitro_charge < float(getattr(const, "NITRO_MIN_ACTIVATION", 30.0)):
+            self.stop_nitro_boost(current_time, start_cooldown=True)
+
+    def get_nitro_spawn_interval(self):
+        return int(getattr(const, "NITRO_SPAWN_INTERVAL", 6800))
+
+    def spawn_nitro_pickup(self, current_time):
+        if self.finish_sign is not None:
+            return
+        if len(getattr(self, "nitro_pickups", [])) >= 1:
+            return
+        if current_time - getattr(self, "last_nitro_time", 0) < self.get_nitro_spawn_interval():
+            return
+
+        lane_ratio = (self._choose_spawn_lane() + 0.5) / 3
+        pickup = NitroPickup(0, -60)
+        pickup.road_ratio = lane_ratio
+        pickup.x = self.road.get_travel_x(pickup.y + 15, pickup.road_ratio, 18) + 9
+        self.nitro_pickups.append(pickup)
+        self.last_nitro_time = current_time
+
+    def align_nitro_to_road(self, pickup):
+        if hasattr(pickup, "road_ratio"):
+            pickup.x = self.road.get_travel_x(pickup.y + 15, pickup.road_ratio, 18) + 9
+
+    def collect_nitro_pickup(self, pickup, current_time):
+        pickup_value = float(getattr(pickup, "charge_value", getattr(const, "NITRO_PICKUP_CHARGE", 34.0)))
+        self.nitro_charge = min(float(getattr(const, "NITRO_MAX_CHARGE", 100.0)), float(getattr(self, "nitro_charge", 0.0)) + pickup_value)
+        visual_pop = float(getattr(const, "NITRO_VISUAL_POP_BONUS", 10.0))
+        # Force the visual to the pop value (don't leave it unchanged) and
+        # enter a decay mode so it immediately starts decreasing.
+        self.nitro_display_charge = min(float(getattr(const, "NITRO_MAX_CHARGE", 100.0)), self.nitro_charge + visual_pop)
+        self.nitro_display_mode = "decay"
+        self.nitro_display_pulse = 1.0
+        self.register_status_message(f"Nitro +{int(pickup_value)}", current_time, duration=900)
 
     def _apply_level_one_wallet_floor(self, previous_state):
         """Ensure Level 1 run starts with exactly 100 money.
@@ -815,6 +980,8 @@ class Game:
                 elif self.state == GameState.HIGH_SCORE:
                     if self.menu_button.is_clicked(event.pos):
                         self.return_to_menu()
+                elif self.state == GameState.GARAGE:
+                    self.handle_garage_click(event.pos)
                 elif self.state == GameState.PLAYING:
                     self.handle_playing_click(event.pos)
                 elif self.state == GameState.GAME_OVER:
@@ -824,8 +991,10 @@ class Game:
                 if event.key in {pg.K_p, pg.K_ESCAPE}:
                     if self.state == GameState.PLAYING:
                         self.toggle_pause()
-                    elif self.state in {GameState.GAME_OVER, GameState.HIGH_SCORE}:
+                    elif self.state in {GameState.GAME_OVER, GameState.HIGH_SCORE, GameState.GARAGE}:
                         self.return_to_menu()
+                if self.state == GameState.PLAYING and event.key in {pg.K_SPACE, pg.K_LSHIFT, pg.K_RSHIFT}:
+                    self.activate_nitro_boost(pg.time.get_ticks())
                 if event.key == pg.K_h and self.state == GameState.MENU:
                     self.open_high_scores()
                 if event.key == pg.K_r and (self.state == GameState.GAME_OVER or self.paused):
@@ -870,6 +1039,8 @@ class Game:
 
         if self.play_button.is_clicked(mouse_pos):
             self.start_game()
+        if self.garage_button.is_clicked(mouse_pos):
+            self.open_garage()
         if self.high_score_button.is_clicked(mouse_pos):
             self.open_high_scores()
         if self.exit_button.is_clicked(mouse_pos):
@@ -1208,10 +1379,17 @@ class Game:
         self.level_complete_auto_advance_at = None
         self.obstacles = []
         self.coins = []
+        self.nitro_pickups = []
         self.clear_hazard_effects()
         self.load_stage_config(self.stage)
         self.coin_frequency = self.get_coin_spawn_interval()
         self.max_active_coins = self.get_max_active_coins()
+        self.nitro_charge = 0.0
+        self.nitro_active = False
+        self.nitro_cooldown_until = 0
+        self.nitro_speed_bonus = 0.0
+        self.motion_multiplier = 1.0
+        self.last_nitro_time = -int(getattr(const, "NITRO_SPAWN_INTERVAL", 6800))
         try:
             self.weather.update_for_stage(
                 stage=self.stage,
@@ -1306,6 +1484,8 @@ class Game:
             if hasattr(self.player, "accelerate"):
                 self.player.accelerate(-FRICTION * dt)
 
+        self.update_nitro_boost(current_time, dt)
+
         # update display-only speed from player's internal velocity (do not change game logic current_speed)
         try:
             self.display_speed = float(self.player.get_velocity())
@@ -1316,12 +1496,9 @@ class Game:
             vel = float(self.player.get_velocity())
             # dt is seconds since last frame
             self.distance += vel * dt
-            # only advance stage progress if the player is actually moving
-            # forward above a small threshold — this prevents the level from
-            # completing when the car is effectively stationary.
-            player_speed_frac = self.get_player_speed_fraction()
-            MIN_VEL_FOR_STAGE = 1.5
-            if vel >= MIN_VEL_FOR_STAGE and player_speed_frac > 0.05:
+            # Advance stage progress whenever the car is moving forward so the
+            # finish-distance HUD remains smooth and continuously decreases.
+            if vel > 0:
                 self.stage_progress_distance += vel * dt
         except Exception:
             pass
@@ -1429,6 +1606,7 @@ class Game:
 
         if self.finish_sign is None:
             self.spawn_coin_pickup(current_time)
+            self.spawn_nitro_pickup(current_time)
 
         for coin in self.coins[:]:
             if coin.move():
@@ -1463,10 +1641,6 @@ class Game:
                     self.nitro_pickups.remove(pickup)
                 except Exception:
                     pass
-            if self.score_multiplier > 1.0:
-                self.consecutive_actions = max(0, self.consecutive_actions - 1)
-                self.update_multiplier()
-            self.multiplier_timer = current_time
 
         # Check stage progression and finish-line logic
         try:
@@ -1483,6 +1657,8 @@ class Game:
             self.draw_high_score_screen()
         elif self.state == GameState.STAGE_COMPLETE:
             self.draw_stage_complete_screen()
+        elif self.state == GameState.GARAGE:
+            self.draw_garage_screen()
         else:
             self.road.draw(self.screen)
             # draw player with a visual vertical offset based on forward velocity
@@ -1517,23 +1693,26 @@ class Game:
             for coin in self.coins:
                 coin.draw(self.screen)
 
-            self.draw_scoreboard()
-            self.draw_status_banner()
-            self.pause_button.draw(self.screen, self.tiny_font)
-            self.sound_button.draw(self.screen, self.tiny_font)
-            # Speed HUD: show player's forward velocity in top-right
+            for pickup in self.nitro_pickups:
+                pickup.draw(self.screen)
+
             try:
-                vel = self.player.get_velocity()
+                self.weather.draw_environment(
+                    self.screen,
+                    self.player,
+                    self.selected_difficulty,
+                    player_visual_y=target_visual_y,
+                )
             except Exception:
-                vel = None
-            if vel is not None:
-                speed_text = self.small_font.render(f"Speed: {vel:.1f} km/h", True, WHITE)
-                speed_rect = speed_text.get_rect(topright=(WIDTH - 10, 10))
-                # Draw background box for readability
-                bg = pg.Surface((speed_rect.width + 8, speed_rect.height + 6), pg.SRCALPHA)
-                bg.fill((0, 0, 0, 140))
-                self.screen.blit(bg, (speed_rect.left - 4, speed_rect.top - 3))
-                self.screen.blit(speed_text, speed_rect)
+                pass
+
+            self.draw_scoreboard()
+            try:
+                self.weather.draw_hud(self.screen, self.small_font, self.tiny_font, self.selected_difficulty)
+            except Exception:
+                pass
+            self.draw_status_banner()
+            self.draw_top_right_hud()
             self.draw_multiplier_feedback()
             self.draw_damage_feedback()
             if self.paused:
@@ -1589,9 +1768,10 @@ class Game:
         right_arrow = pg.Rect(right_panel.right - 58, right_panel.y + 74, 40, 40)
 
         action_y = content_top + 228
-        start_button = pg.Rect(card_x + 30, action_y, 155, 48)
-        score_button = pg.Rect(card_x + 196, action_y, 168, 48)
-        exit_button = pg.Rect(card_x + 375, action_y, 155, 48)
+        start_button = pg.Rect(card_x + 28, action_y, 134, 48)
+        garage_button = pg.Rect(card_x + 170, action_y, 116, 48)
+        score_button = pg.Rect(card_x + 294, action_y, 124, 48)
+        exit_button = pg.Rect(card_x + 426, action_y, 106, 48)
         footer_rect = pg.Rect(card_x + 30, card_y + 418, MENU_CARD_WIDTH - 60, 74)
 
         return {
@@ -1606,6 +1786,7 @@ class Game:
             "start_button": start_button,
             "score_button": score_button,
             "exit_button": exit_button,
+            "garage_button": garage_button,
             "footer_rect": footer_rect,
         }
 
@@ -1616,6 +1797,8 @@ class Game:
         self.high_score_button.rect.size = layout["score_button"].size
         self.exit_button.rect.topleft = layout["exit_button"].topleft
         self.exit_button.rect.size = layout["exit_button"].size
+        self.garage_button.rect.topleft = layout["garage_button"].topleft
+        self.garage_button.rect.size = layout["garage_button"].size
 
     def sync_game_over_button_rects(self):
         button_y_start = HEIGHT // 2 - 20
@@ -1687,6 +1870,7 @@ class Game:
         self.screen.blit(best_text, (layout["right_panel"].centerx - best_text.get_width() // 2, layout["right_panel"].y + 186))
 
         self.play_button.draw(self.screen, self.font)
+        self.garage_button.draw(self.screen, self.tiny_font)
         self.high_score_button.draw(self.screen, self.small_font)
         self.exit_button.draw(self.screen, self.small_font)
 
@@ -1750,6 +1934,110 @@ class Game:
         self.menu_button.rect.y = card_y + 370
         self.menu_button.draw(self.screen, self.small_font)
 
+    def draw_garage_screen(self):
+        self.save_data = load_save_data()
+        self.total_money = self.save_data.get("total_money", self.total_money)
+
+        card_x, card_y = self.draw_menu_shell("GARAGE", "Browse skins, unlock them, and pick your ride.")
+        layout = self.get_menu_layout()
+        self.sync_menu_button_rects(layout)
+
+        self.draw_menu_panel(layout["left_panel"], "Garage Stats")
+        self.draw_menu_panel(layout["right_panel"], "Selected Skin")
+
+        unlocked = self._get_unlocked_skin_indices()
+        current_skin = CAR_SKINS[self.selected_skin]
+        is_unlocked = self.selected_skin in unlocked
+        price = int(current_skin.get("price", 0))
+        stats = self._get_selected_skin_stats()
+
+        stats_lines = [
+            f"Money: {self.total_money}",
+            f"Unlocked: {len(unlocked)}/{len(CAR_SKINS)}",
+            f"Status: {'Unlocked' if is_unlocked else 'Locked'}",
+            f"Type: {current_skin.get('type', 'car').title()}",
+            f"Speed +{int(stats['speed_bonus'])} / Handling +{int(stats['handling_bonus'])}",
+        ]
+        for index, line in enumerate(stats_lines):
+            info = self.tiny_font.render(line, True, WHITE if index != 2 else (GREEN if is_unlocked else YELLOW))
+            self.screen.blit(info, (layout["left_panel"].x + 18, layout["left_panel"].y + 58 + index * 26))
+
+        preview_rect = layout["preview_rect"]
+        preview_bg = pg.Surface(preview_rect.size, pg.SRCALPHA)
+        preview_bg.fill((28, 28, 38, 210))
+        pg.draw.rect(preview_bg, (255, 255, 255, 30), (0, 0, preview_rect.width, preview_rect.height), 2, border_radius=10)
+        self.screen.blit(preview_bg, preview_rect.topleft)
+
+        preview_car = Car(preview_rect.centerx - 25, preview_rect.y + 6, self.player_color, True, self.player_type)
+        preview_car.draw(self.screen)
+
+        mouse_pos = pg.mouse.get_pos()
+        for arrow_rect, symbol in [(layout["left_arrow"], "<"), (layout["right_arrow"], ">")]:
+            hover = arrow_rect.collidepoint(mouse_pos)
+            color = GREEN if hover else GRAY
+            pg.draw.rect(self.screen, color, arrow_rect, border_radius=5)
+            pg.draw.rect(self.screen, WHITE, arrow_rect, 2, border_radius=5)
+            arrow_text = self.small_font.render(symbol, True, WHITE)
+            self.screen.blit(arrow_text, arrow_text.get_rect(center=arrow_rect.center))
+
+        skin_name = self.tiny_font.render(current_skin["name"], True, YELLOW)
+        self.screen.blit(skin_name, (layout["right_panel"].centerx - skin_name.get_width() // 2, layout["right_panel"].y + 164))
+
+        lock_text = "UNLOCKED" if is_unlocked else f"LOCKED • {price}"
+        lock_color = GREEN if is_unlocked else ORANGE
+        status_text = self.tiny_font.render(lock_text, True, lock_color)
+        self.screen.blit(status_text, (layout["right_panel"].centerx - status_text.get_width() // 2, layout["right_panel"].y + 186))
+
+        skin_type = self.tiny_font.render(f"Type: {current_skin.get('type', 'car').title()}", True, WHITE)
+        self.screen.blit(skin_type, (layout["right_panel"].centerx - skin_type.get_width() // 2, layout["right_panel"].y + 208))
+
+        self.garage_action_button.rect.topleft = (card_x + 54, card_y + 402)
+        self.garage_action_button.rect.size = (220, 45)
+        if is_unlocked:
+            self.garage_action_button.text = "SELECT SKIN"
+            self.garage_action_button.color = (58, 170, 90)
+            self.garage_action_button.hover_color = (82, 210, 120)
+        else:
+            self.garage_action_button.text = f"BUY FOR {price}"
+            self.garage_action_button.color = (184, 124, 44)
+            self.garage_action_button.hover_color = (220, 156, 64)
+        self.garage_action_button.draw(self.screen, self.small_font)
+
+        self.garage_back_button.rect.topleft = (card_x + MENU_CARD_WIDTH - 274, card_y + 402)
+        self.garage_back_button.rect.size = (220, 45)
+        self.garage_back_button.draw(self.screen, self.small_font)
+
+        if getattr(self, "garage_message_until", 0) > pg.time.get_ticks():
+            garage_msg = self.tiny_font.render(getattr(self, "garage_message", ""), True, CYAN)
+            self.screen.blit(garage_msg, (card_x + MENU_CARD_WIDTH // 2 - garage_msg.get_width() // 2, card_y + 458))
+
+    def handle_garage_click(self, mouse_pos):
+        layout = self.get_menu_layout()
+        self.sync_menu_button_rects(layout)
+
+        left_arrow = layout["left_arrow"]
+        right_arrow = layout["right_arrow"]
+        if left_arrow.collidepoint(mouse_pos):
+            self.selected_skin = (self.selected_skin - 1) % len(CAR_SKINS)
+            self._sync_player_skin()
+            self.register_garage_message(CAR_SKINS[self.selected_skin]["name"], 900)
+            return
+
+        if right_arrow.collidepoint(mouse_pos):
+            self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
+            self._sync_player_skin()
+            self.register_garage_message(CAR_SKINS[self.selected_skin]["name"], 900)
+            return
+
+        if self.garage_action_button.is_clicked(mouse_pos):
+            self._buy_or_select_current_skin()
+            return
+
+        if self.garage_back_button.is_clicked(mouse_pos):
+            self.save_garage_progress()
+            self.return_to_menu()
+            return
+
     def draw_scoreboard(self):
         self.score_animation += 0.1
         pulse = int(5 * abs(math.sin(self.score_animation)))
@@ -1784,8 +2072,8 @@ class Game:
         # Show distance-to-finish for the current stage (place above Track Watch)
         cfg = getattr(self, "current_stage_config", None)
         if cfg:
-            remaining = int(max(0, cfg.get("distance_target", 0) - self.stage_progress_distance))
-            finish_text = self.tiny_font.render(f"To Finish: {remaining} m", True, WHITE)
+            remaining = max(0.0, float(cfg.get("distance_target", 0)) - float(self.stage_progress_distance))
+            finish_text = self.tiny_font.render(f"To Finish: {remaining:.1f} m", True, WHITE)
             # Track Watch section begins around y=262; place the finish text just above it
             track_watch_top = 262
             finish_y = track_watch_top - 28
@@ -1996,62 +2284,71 @@ class Game:
                 badge.blit(status_text, (8, 2))
                 self.screen.blit(badge, (24, 440))
 
-        def draw_top_right_hud(self):
-            panel_width = 226
-            panel_height = 132
-            panel_x = WIDTH - panel_width - 14
-            panel_y = 12
+    def draw_top_right_hud(self):
+        panel_width = 226
+        panel_height = 132
+        panel_x = WIDTH - panel_width - 14
+        panel_y = 12
 
-            self.pause_button.rect.topleft = (panel_x + 122, panel_y + 10)
-            self.pause_button.rect.size = (92, 30)
-            self.sound_button.rect.topleft = (panel_x + 122, panel_y + 48)
-            self.sound_button.rect.size = (92, 30)
+        self.pause_button.rect.topleft = (panel_x + 122, panel_y + 10)
+        self.pause_button.rect.size = (92, 30)
+        self.sound_button.rect.topleft = (panel_x + 122, panel_y + 48)
+        self.sound_button.rect.size = (92, 30)
 
-            panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
-            panel.fill((8, 14, 24, 220))
-            pg.draw.rect(panel, (255, 255, 255, 42), (0, 0, panel_width, panel_height), 2, border_radius=16)
+        panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
+        panel.fill((8, 14, 24, 220))
+        pg.draw.rect(panel, (255, 255, 255, 42), (0, 0, panel_width, panel_height), 2, border_radius=16)
 
-            speed_text = self.tiny_font.render(f"Speed {self.display_speed:.1f} km/h", True, WHITE)
-            panel.blit(speed_text, (14, 14))
+        speed_text = self.tiny_font.render(f"Speed {self.display_speed:.1f} km/h", True, WHITE)
+        panel.blit(speed_text, (14, 14))
 
-            current_money = max(0, self.total_money + self.current_level_money)
-            money_text = self.tiny_font.render(f"Money {current_money}", True, GOLD)
-            panel.blit(money_text, (14, 34))
+        current_money = max(0, self.total_money + self.current_level_money)
+        money_text = self.tiny_font.render(f"Money {current_money}", True, GOLD)
+        panel.blit(money_text, (14, 34))
 
-            label = self.tiny_font.render("Nitro", True, (175, 235, 255))
-            panel.blit(label, (14, 58))
+        label = self.tiny_font.render("Nitro", True, (175, 235, 255))
+        panel.blit(label, (14, 58))
 
-            bar_rect = pg.Rect(14, 80, 96, 15)
-            pg.draw.rect(panel, (24, 34, 48), bar_rect, border_radius=7)
-            fill_width = int(bar_rect.width * (self.nitro_charge / max(1.0, NITRO_MAX_CHARGE)))
-            if fill_width > 0:
-                fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
-                bar_color = (64, 220, 255) if not getattr(self, "nitro_active", False) else (255, 170, 72)
-                pg.draw.rect(panel, bar_color, fill_rect, border_radius=7)
-            pg.draw.rect(panel, (210, 245, 255), bar_rect, 2, border_radius=7)
+        bar_rect = pg.Rect(14, 80, 96, 15)
+        pg.draw.rect(panel, (34, 24, 18), bar_rect, border_radius=7)
 
-            if getattr(self, "nitro_active", False):
-                status = "Boost active"
-                status_color = (255, 190, 92)
-            elif pg.time.get_ticks() < getattr(self, "nitro_cooldown_until", 0):
-                remaining = max(0.0, (getattr(self, "nitro_cooldown_until", 0) - pg.time.get_ticks()) / 1000.0)
-                status = f"Cooldown {remaining:.1f}s"
-                status_color = YELLOW
-            elif getattr(self, "nitro_charge", 0) >= getattr(self, "NITRO_MIN_ACTIVATION", 0):
-                status = "SPACE / SHIFT"
-                status_color = GREEN
-            else:
-                status = "Collect nitro"
-                status_color = GRAY
+        base_display_charge = float(getattr(self, "nitro_display_charge", self.nitro_charge))
+        current_time = pg.time.get_ticks()
+        nitro_ratio = max(0.0, min(1.0, base_display_charge / max(1.0, float(NITRO_MAX_CHARGE))))
+        motion_amplitude = 0.8 + 1.0 * nitro_ratio
+        motion_wave = math.sin(current_time / 150.0) * motion_amplitude + math.sin(current_time / 370.0 + nitro_ratio * 2.0) * 0.35
+        nitro_visual_charge = max(0.0, min(float(NITRO_MAX_CHARGE), base_display_charge + motion_wave))
+        nitro_ratio = max(0.0, min(1.0, nitro_visual_charge / max(1.0, float(NITRO_MAX_CHARGE))))
+        fill_width = int(bar_rect.width * nitro_ratio)
+        if fill_width > 0:
+            fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
+            nitro_fill_color = (168, 104, 54)
+            pg.draw.rect(panel, nitro_fill_color, fill_rect, border_radius=7)
 
-            status_text = self.tiny_font.render(status, True, status_color)
-            charge_text = self.tiny_font.render(f"{int(getattr(self, "nitro_charge", 0))}%", True, WHITE)
-            panel.blit(status_text, (14, 104))
-            panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 104))
+        pg.draw.rect(panel, (227, 201, 160), bar_rect, 2, border_radius=7)
 
-            self.screen.blit(panel, (panel_x, panel_y))
-            self.pause_button.draw(self.screen, self.tiny_font)
-            self.sound_button.draw(self.screen, self.tiny_font)
+        if getattr(self, "nitro_active", False):
+            status = "Boost active"
+            status_color = (255, 190, 92)
+        elif pg.time.get_ticks() < getattr(self, "nitro_cooldown_until", 0):
+            remaining = max(0.0, (getattr(self, "nitro_cooldown_until", 0) - pg.time.get_ticks()) / 1000.0)
+            status = f"Cooldown {remaining:.1f}s"
+            status_color = YELLOW
+        elif getattr(self, "nitro_charge", 0) >= float(getattr(const, "NITRO_MIN_ACTIVATION", 30.0)):
+            status = "SPACE / SHIFT"
+            status_color = GREEN
+        else:
+            status = "Collect nitro"
+            status_color = GRAY
+
+        status_text = self.tiny_font.render(status, True, status_color)
+        charge_text = self.tiny_font.render(f"{int(getattr(self, 'nitro_charge', 0))}%", True, WHITE)
+        panel.blit(status_text, (14, 104))
+        panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 104))
+
+        self.screen.blit(panel, (panel_x, panel_y))
+        self.pause_button.draw(self.screen, self.tiny_font)
+        self.sound_button.draw(self.screen, self.tiny_font)
 
     def update_multiplier(self):
         self.multiplier_timer = pg.time.get_ticks()
