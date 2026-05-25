@@ -616,8 +616,18 @@ class Game:
         target_display = float(getattr(self, "nitro_charge", 0.0))
         decay_rate = float(getattr(const, "NITRO_VISUAL_DECAY_PER_SECOND", 26.0))
         mode = getattr(self, "nitro_display_mode", None)
-        if mode == "decay":
-            # Force a steady visual decrease toward the real nitro charge.
+        if mode == "drain_zero":
+            # Visual-only drain toward zero (independent of gameplay nitro).
+            new_display = current_display - decay_rate * dt
+            if new_display <= 0.0:
+                self.nitro_display_charge = 0.0
+                self.nitro_display_mode = None
+                self.nitro_display_pulse = 0.0
+            else:
+                self.nitro_display_charge = new_display
+                self.nitro_display_pulse = max(0.0, pulse - 3.2 * dt)
+        elif mode == "decay":
+            # Backwards-compatible: decay toward gameplay nitro_charge.
             new_display = current_display - decay_rate * dt
             if new_display <= target_display:
                 self.nitro_display_charge = target_display
@@ -627,8 +637,15 @@ class Game:
                 self.nitro_display_charge = new_display
                 self.nitro_display_pulse = max(0.0, pulse - 3.2 * dt)
         else:
-            # Normal blending when not in forced-decay mode.
-            self.nitro_display_charge = target_display + (current_display - target_display) * min(1.0, 7.0 * dt)
+            # Default: never visually increase automatically. If gameplay
+            # nitro is lower than the visual, blend downward toward it; if
+            # gameplay nitro is higher, keep the current visual until a
+            # pickup explicitly raises it.
+            if target_display < current_display:
+                factor = min(1.0, 7.0 * dt)
+                self.nitro_display_charge = target_display + (current_display - target_display) * factor
+            else:
+                self.nitro_display_charge = current_display
 
         if not getattr(self, "nitro_active", False):
             return
@@ -671,9 +688,11 @@ class Game:
         self.nitro_charge = min(float(getattr(const, "NITRO_MAX_CHARGE", 100.0)), float(getattr(self, "nitro_charge", 0.0)) + pickup_value)
         visual_pop = float(getattr(const, "NITRO_VISUAL_POP_BONUS", 10.0))
         # Force the visual to the pop value (don't leave it unchanged) and
-        # enter a decay mode so it immediately starts decreasing.
+        # enter a visual drain-to-zero mode so it immediately starts decreasing
+        # toward zero (visual-only) while gameplay `nitro_charge` remains
+        # unchanged. This ensures the HUD never gets stuck at the pickup value.
         self.nitro_display_charge = min(float(getattr(const, "NITRO_MAX_CHARGE", 100.0)), self.nitro_charge + visual_pop)
-        self.nitro_display_mode = "decay"
+        self.nitro_display_mode = "drain_zero"
         self.nitro_display_pulse = 1.0
         self.register_status_message(f"Nitro +{int(pickup_value)}", current_time, duration=900)
 
@@ -2312,13 +2331,9 @@ class Game:
         bar_rect = pg.Rect(14, 80, 96, 15)
         pg.draw.rect(panel, (34, 24, 18), bar_rect, border_radius=7)
 
+        # Display follows nitro_display_charge exactly so bar and percent match.
         base_display_charge = float(getattr(self, "nitro_display_charge", self.nitro_charge))
-        current_time = pg.time.get_ticks()
         nitro_ratio = max(0.0, min(1.0, base_display_charge / max(1.0, float(NITRO_MAX_CHARGE))))
-        motion_amplitude = 0.8 + 1.0 * nitro_ratio
-        motion_wave = math.sin(current_time / 150.0) * motion_amplitude + math.sin(current_time / 370.0 + nitro_ratio * 2.0) * 0.35
-        nitro_visual_charge = max(0.0, min(float(NITRO_MAX_CHARGE), base_display_charge + motion_wave))
-        nitro_ratio = max(0.0, min(1.0, nitro_visual_charge / max(1.0, float(NITRO_MAX_CHARGE))))
         fill_width = int(bar_rect.width * nitro_ratio)
         if fill_width > 0:
             fill_rect = pg.Rect(bar_rect.x, bar_rect.y, fill_width, bar_rect.height)
@@ -2342,7 +2357,7 @@ class Game:
             status_color = GRAY
 
         status_text = self.tiny_font.render(status, True, status_color)
-        charge_text = self.tiny_font.render(f"{int(getattr(self, 'nitro_charge', 0))}%", True, WHITE)
+        charge_text = self.tiny_font.render(f"{int(getattr(self, 'nitro_display_charge', getattr(self, 'nitro_charge', 0)))}%", True, WHITE)
         panel.blit(status_text, (14, 104))
         panel.blit(charge_text, (panel_width - charge_text.get_width() - 14, 104))
 
