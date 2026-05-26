@@ -9,7 +9,7 @@
 </p>
 
 <h1 align="center">Atari Speed Racer</h1>
-<h3 align="center">A fast-paced, addictive 2D endless racing game built with Pygame/Ruff</h3>
+<h3 align="center">A fast-paced, addictive 2D endless racing game built with Pygame</h3>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/VIDAKHOSHPEY22/Racing-car-game/main/screenshots/gameplay-preview.gif" alt="Gameplay Preview" width="800"/>
@@ -23,7 +23,7 @@ A thrilling 2D racing experience where you dodge traffic at high speeds!
 
 ---
 
-## 🚦 Quick Start using Python and Git
+## Quick Start using Python/Git
 
 ```bash
 # Clone repo
