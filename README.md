@@ -67,18 +67,15 @@ python atari.py
 ```
 Racing-car-game/
 ├── .github/              # GitHub workflows & issue templates
-├── assets/               # Images, icons, car skins, fonts, etc.
+├── assets/               # Images, icons, car skins, fonts etc.
 ├── music/                # Background music & sound effects
 ├── screenshots/          # Game screenshots & GIFs
 ├── .gitignore            # tells Git which files and folders to ignore (not track)
-├── atari.py              # Main game (run this!)
-├── highscore.txt         # Stores your best score automatically
-├── requirement.txt       # Dependencies (just pygame)
+├── atari.py              # Main game (run this via command line!)
+├── highscore.txt         # Stores your best score in a .txt file
+├── requirement.txt       # Dependencies (just pygame-ce)
 ├── LICENCE               # MIT License
-├── README.md             # You're reading it!
-├── CONTRIBUTION_SUMMARY.md     # Summary of recent contributions
-├── FEATURES_COMPARISON.md      # Before/after feature comparison
-└── PR_DESCRIPTION.md           # Ready-to-use PR template
+└── README.md             # You're reading it!
 ```
 
 ## 📸 Screenshots
@@ -104,7 +101,7 @@ pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
 <div align="center">
 
 <img src="https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/10f9cd6505059a66bafb5822d0335cc310ca601c/screenshots/1751802576626-ezgif.com-video-to-gif-converter.gif?raw=true" 
-     alt="Exciting Racing Gameplay" 
+     alt="Exciting Gameplay!" 
      width="850"/>
 
 <br>
@@ -187,7 +184,9 @@ Thanks to everyone who contributed with pull requests, bug reports and suggestio
 
 ---
 ## 📜 License
-This project is licensed under the **MIT License** –  
+
+This project is licensed under the **MIT License**
+
 Feel free to use, modify, distribute, and have fun with it! ❤️
 
 ---
