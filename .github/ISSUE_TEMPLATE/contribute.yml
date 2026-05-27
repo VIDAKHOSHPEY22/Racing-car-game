@@ -7,10 +7,10 @@ body:
     attributes:
       label: What are you adding?
       description: TheM1ddleM1n cannot mind read so tell him a short description of what you add/remove.
-      placeholder: New Images for cars to look realistic 
+      placeholder: Streamlined performance
     validations:
       required: true
   - type: textarea
     attributes:
       label: Anything else?
-      description: Optional notes, questions, or a draft of your idea.
+      description: Optional draft here
