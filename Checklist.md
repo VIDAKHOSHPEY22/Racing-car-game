@@ -17,16 +17,15 @@
 
 ---
 
-## About This Project
+## Get Involved
+- This project is perfect for Python beginners and game development enthusiasts alike! 
+- We actively welcome community contributions.
 
-Great for Python beginners or anyone who loves tinkering with games!
+## How can you help?
+- Fix bugs: Check our open Issues and submit a Pull Request.
+- Add features: Expand the project using Pygame, PyTorch, or other libraries.
+- Improve docs: Clearer explanations and guides are always appreciated.
 
-**You're welcome to:**
-
-- Fix open bugs and submit improvements via PR/Issue
-- Extend it using **PyTorch**, **Pygame**, or other libraries
-
-**Need help or want to contribute?**
-
-- Please feel free to email the maintainer
-- Or reach out to **[@TheM1ddleM1n](https://github.com/TheM1ddleM1n)** — who is always happy to help!
+## Need Help or Want to Collaborate?
+- Email: Reach out directly to the project maintainer.
+- GitHub: Contact TheM1ddleM1n on any github repo he owns. We are always happy to help you get started!
