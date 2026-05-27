@@ -78,15 +78,9 @@ Racing-car-game/
 └── README.md             # You're reading it!
 ```
 
-## 📸 Screenshots
+### Screenshots
 
-<div align="center">
-
-![Menu Screen](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/game.jpg?raw=true)
-
-<br><br>
-
-![Game Over Screen](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/end.jpg?raw=true)
+[See Screenshots](https://github.com/VIDAKHOSHPEY22/Racing-car-game/tree/main/screenshots)
 
 </div>
 
