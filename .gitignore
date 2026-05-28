@@ -39,3 +39,6 @@ build/
 
 # Sensitive files
 .env
+
+# Saved Highscore 
+highscore.txt
