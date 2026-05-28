@@ -1,6 +1,7 @@
 # `atari.py` Checklist
 
-## Open Issues
+## Open Issues (TODO)
+- [ ] TODO: Smooth Gameplay (remove bottlenecks)
 
 ## Completed
 
