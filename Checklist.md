@@ -3,7 +3,7 @@
 ## Open Issues (TODO)
 - [ ] TODO: Smooth Gameplay (remove bottlenecks)
 
-## Completed
+## Completed Issues
 
 - [x] Speed system implemented
 - [x] Basic appearance added
