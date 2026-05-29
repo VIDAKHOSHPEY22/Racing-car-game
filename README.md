@@ -1,23 +1,28 @@
-<!--hey guys I will be glad if you fix it it will be  fun and star ⭐ me--> 
-
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
   <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=95e1d3" alt="License" />
   <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=a8e6cf" alt="Last Commit" />
 </p>
 
-<h1 align="center">Atari Speed Racer</h1>
-<h3 align="center">A fast-paced, addictive 2D endless racing game built with Pygame</h3>
+<h1 align="center">Racing Car Game: Highway Rush</h1>
+
+<h3 align="center">A fast-paced 2D endless racing game built with Python and Pygame</h3>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/VIDAKHOSHPEY22/Racing-car-game/main/screenshots/gameplay-preview.gif" alt="Gameplay Preview" width="800"/>
-  <br>
+</p>
 
-# 🏎️ Atari Speed Racer | Pygame Racing Game
+---
 
-![Gameplay Screenshot](https://github.com/VIDAKHOSHPEY22/Racing-car-game/blob/6fe54e20deabfe7206b2b8480d595eaffa260b51/screenshots/start.jpg)
+## About the Project
 
-A thrilling 2D racing experience where you dodge traffic at high speeds!
+Racing Car Game: Highway Rush started as a simple personal project focused on learning game development with Python and Pygame.
+
+Over time, it gradually evolved into a more structured and collaborative project, shaped by improvements, bug fixes, and new ideas from contributors.
+
+The goal is not just to build a game, but to keep improving it through experimentation, feedback, and continuous development.
+
+We are always open to new ideas, suggestions, and contributions from anyone interested.
 
 ---
 
