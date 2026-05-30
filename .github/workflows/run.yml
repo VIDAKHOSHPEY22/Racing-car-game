@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-syntax:
+  run:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -30,7 +30,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check Python syntax only
+      - name: Install dependencies
         run: |
-          python -m py_compile atari.py
-          echo "Syntax check passed!"
+          pip install pygame
+          pip install numpy || true
+
+      - name: Run game
+        env:
+          PYGAME_HIDE_SUPPORT_PROMPT: 1
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: xvfb-run -a python -c "import atari; print('OK')"
