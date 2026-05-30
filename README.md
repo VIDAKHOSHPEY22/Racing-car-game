@@ -71,19 +71,63 @@ python atari.py
 ---
 
 ## Gameplay Preview
+## Gameplay Preview
 
-| Before (Old) | After (New) |
-|--------------|-------------|
-| <img src="screenshots/preview.gif" width="400" alt="Old Gameplay"/> | <img src="screenshots/new-preview.gif" width="400" alt="New Gameplay"/> |
+### Before (Old)
+
+<p align="center">
+  <img src="screenshots/preview.gif" width="90%" alt="Old Gameplay">
+</p>
+
+### After (New)
+
+<p align="center">
+  <img src="screenshots/new-preview.gif" width="90%" alt="New Gameplay">
+</p>
 
 ---
 
-## Screenshots - Before vs After
+## Screenshots - Before
 
-| | Menu | Gameplay | Game Over |
-|---|------|----------|-----------|
-| **Before** | <img src="screenshots/start.jpg" width="250"/> | <img src="screenshots/game.jpg" width="250"/> | <img src="screenshots/end.jpg" width="250"/> |
-| **After** | <img src="screenshots/new-menu.png" width="250"/> | <img src="screenshots/new-game.png" width="250"/> | <img src="screenshots/new-end.png" width="250"/> |
+### Menu
+
+<p align="center">
+  <img src="screenshots/start.jpg" width="90%" alt="Old Menu">
+</p>
+
+### Gameplay
+
+<p align="center">
+  <img src="screenshots/game.jpg" width="90%" alt="Old Gameplay">
+</p>
+
+### Game Over
+
+<p align="center">
+  <img src="screenshots/end.jpg" width="90%" alt="Old Game Over">
+</p>
+
+---
+
+## Screenshots - After
+
+### Menu
+
+<p align="center">
+  <img src="screenshots/new-menu.png" width="90%" alt="New Menu">
+</p>
+
+### Gameplay
+
+<p align="center">
+  <img src="screenshots/new-game.png" width="90%" alt="New Gameplay">
+</p>
+
+### Game Over
+
+<p align="center">
+  <img src="screenshots/new-end.png" width="90%" alt="New Game Over">
+</p>
 
 ### What Changed?
 
