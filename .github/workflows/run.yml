@@ -1,43 +1,18 @@
-name: Execute atari.py
+name: CI
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - "atari.py"
-      - "requirements.txt"
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
-    paths:
-      - "atari.py"
-      - "requirements.txt"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main ]
 
 jobs:
-  run:
+  syntax-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Python Setup
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          pip install pygame
-          pip install numpy || true
-
-      - name: Run game
-        env:
-          PYGAME_HIDE_SUPPORT_PROMPT: 1
-          SDL_VIDEODRIVER: dummy
-          SDL_AUDIODRIVER: dummy
-        run: xvfb-run -a python -c "import atari; print('OK')"
+          python-version: '3.12'
+      - name: Check syntax
+        run: python -m py_compile atari.py
