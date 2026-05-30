@@ -71,7 +71,6 @@ python atari.py
 ---
 
 ## Gameplay Preview
-## Gameplay Preview
 
 ### Before (Old)
 
