@@ -2,8 +2,11 @@
 
 ## Open Issues (TODO)
 - [ ] TODO: Smooth Gameplay (remove bottlenecks)
+- [ ] TODO: Add more car skins
+- [ ] TODO: Implement online high score leaderboard
+- [ ] TODO: Add power-ups (shield, magnet, time freeze)
 
-## Completed Issues
+## Completed Issues - Original Base (TheM1ddleM1n)
 
 - [x] Speed system implemented
 - [x] Basic appearance added
@@ -16,17 +19,53 @@
 - [x] for HUD Menu on bootup it should have arrow keys ← and →
 - [x] Fix Linting (E701/E702)
 
+## Completed Issues - V5.3 (VIDAKHOSHPEY22)
+
+- [x] Complete sound system with 5 audio effects using numpy
+- [x] Particle effects for explosions, coins, and boost trails
+- [x] Boost system with SPACE key (costs 50 points)
+- [x] Screen shake effect on collisions and speed bumps
+- [x] Responsive UI for all screen resolutions
+- [x] Speed bonus display in car selection menu
+- [x] Custom drawn arrows replacing broken Unicode arrow characters
+- [x] Fixed car positioning inside menu selection box
+- [x] Road lines now scroll downward for better sense of speed
+- [x] Boost glow effect around player car
+- [x] Random free boost chance from collecting coins
+
+## What's Coming Next
+
+- [ ] Multiplayer support
+- [ ] More obstacles (potholes, police cars)
+- [ ] Day/night cycle
+- [ ] Weather effects (rain, fog)
+- [ ] Different track environments
+- [ ] Car upgrade system
+
 ---
 
 ## Get Involved
-- This project is perfect for Python beginners and game development enthusiasts alike! 
-- We actively welcome community contributions.
+
+This project is perfect for Python beginners and game development enthusiasts alike. We actively welcome community contributions.
 
 ## How can you help?
-- Fix bugs: Check our open Issues and submit a Pull Request.
-- Add features: Expand the project using Pygame, PyTorch, or other libraries.
-- Improve docs: Clearer explanations and guides are always appreciated.
+
+- Fix bugs: Check our open Issues and submit a Pull Request
+- Add features: Expand the project using Pygame or other libraries
+- Improve docs: Clearer explanations and guides are always appreciated
+- Test the game on different screen resolutions and report issues
+- Suggest new car skins or obstacle types
 
 ## Need Help or Want to Collaborate?
-- Email: Reach out directly to the project maintainer.
-- GitHub: Contact TheM1ddleM1n on any github repo he owns. We are always happy to help you get started!
+
+- Email: vidatwin18@gmail.com
+- GitHub: Contact @VIDAKHOSHPEY22 or @TheM1ddleM1n
+
+We are always happy to help you get started!
+
+---
+
+## Contributors
+
+- **TheM1ddleM1n** - Original base game, bug fixes, performance improvements, V5.2 LTS release
+- **VIDAKHOSHPEY22** - Sound system, particle effects, boost mechanic, responsive UI, V5.3 release
