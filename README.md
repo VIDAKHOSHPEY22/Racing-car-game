@@ -69,24 +69,22 @@ python atari.py
 ```
 Racing-car-game/
 ├── .github/              # GitHub workflows & issue templates
-├── assets/               # Images, icons, car skins, fonts etc.
-├── music/                # Background music & sound effects
 ├── screenshots/          # Game screenshots & GIFs
 ├── .gitignore            # tells Git which files and folders to ignore (not track)
-├── atari.py              # Main game (run this via command line!)
-├── highscore.txt         # Stores your best score in a .txt file
-├── requirement.txt       # Dependencies (just pygame-ce)
+├── Checklist.md          # See progress on issues!
 ├── LICENCE               # MIT License
-└── README.md             # You're reading it!
+├── README.md             # You're reading it!
+├── atari.py              # Main game (run this via command line!)
+└── requirements.txt      # Dependencies (just pygame-ce)
 ```
 
 ### Screenshots
 
-[See Screenshots](https://github.com/VIDAKHOSHPEY22/Racing-car-game/tree/main/screenshots)
+[Screenshots](https://github.com/VIDAKHOSHPEY22/Racing-car-game/tree/main/screenshots)
 
 </div>
 
-## 🛠️ Building Executable
+## Build
 Windows:
 ```bash
 pyinstaller --onefile --windowed --icon=assets/icon.ico atari.py
