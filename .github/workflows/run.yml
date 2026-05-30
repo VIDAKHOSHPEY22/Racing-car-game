@@ -6,11 +6,17 @@ on:
       - main
     paths:
       - "atari.py"
+      - "requirements.txt"
   pull_request:
     branches:
       - main
     paths:
       - "atari.py"
+      - "requirements.txt"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -22,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Ruff Installation
+      - name: Install Ruff
         run: pip install ruff
 
       - name: Lint
@@ -40,22 +46,23 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb
-          pip install pygame
 
-      - name: Create wrapper to ignore sound errors
-        run: |
-          echo "try:" > runner.py
-          echo "    import atari" >> runner.py
-          echo "except Exception as e:" >> runner.py
-          echo "    print('⚠️ Game error ignored:', e)" >> runner.py
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
 
-      - name: Run game with wrapper
+      - name: Run game
         env:
           PYGAME_HIDE_SUPPORT_PROMPT: 1
           SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: xvfb-run -a python runner.py
+        run: |
+          xvfb-run -a python - <<'EOF'
+          try:
+              import atari
+          except Exception as e:
+              print("Game error ignored:", e)
+          EOF
