@@ -2,8 +2,6 @@
 
 <!-- A short description of your change. What problem does it solve or what does it add? -->
 
-&nbsp;
-
 ---
 
 ## Type of change
@@ -16,7 +14,7 @@
 
 ---
 
-## Related issue (if applicable)
+## Related issue (if applicable) :3
 
 <!-- Every PR should have a corresponding issue. If one does not exist, please open one before submitting. -->
 
@@ -47,5 +45,3 @@ Closes #
 ## Notes for @TheM1ddleM1n
 
 <!-- Optional. Anything you want to flag to the maintainer — design decisions, trade-offs, or areas you are unsure about. Leave blank if not applicable. -->
-
-&nbsp;
