@@ -1,7 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
   <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=95e1d3" alt="License" />
-  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=a8e6cf" alt="Last Commit" />
 </p>
 
 <h1 align="center">Racing Car Game: Highway Rush</h1>
