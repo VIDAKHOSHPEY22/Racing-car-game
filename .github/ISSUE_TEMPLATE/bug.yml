@@ -42,7 +42,7 @@ body:
       description: Paste any error messages from your terminal.
   - type: input
     attributes:
-      label: Environment
+      label: OS/Python Version
       description: Your OS and Python version (run `python --version`)
       placeholder: ie. Windows 11, Python 3.12
   - type: textarea
