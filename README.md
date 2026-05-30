@@ -166,7 +166,6 @@ pip install pygame numpy
 Racing-car-game/
 ├── atari.py              # Main game file
 ├── requirements.txt      # Dependencies
-├── highscore.txt         # Saved high score
 ├── LICENSE               # MIT License
 ├── screenshots/
 │   ├── new-menu.png      # New menu screen
