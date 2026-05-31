@@ -143,9 +143,9 @@ python atari.py
 
 ### Dependencies
 
-- Python 3.10 or higher
+- Python 3.13
 - pygame
-- numpy (optional, for sound effects)
+- numpy (this is optional, for sound effects)
 
 ### Install with pip
 
@@ -164,7 +164,7 @@ pip install pygame numpy
 
 ```
 Racing-car-game/
-├── atari.py              # Main game file
+├── atari.py              # Main game file to run
 ├── requirements.txt      # Dependencies
 ├── LICENSE               # MIT License
 ├── screenshots/
@@ -201,7 +201,7 @@ pyinstaller --onefile --windowed atari.py
         <sub><b>TheM1ddleM1n</b></sub>
       </a>
       <br />
-      <small>V5.2 LTS Release</small>
+      <small>V5.4 LTS Release</small>
      </td>
      <td align="center">
       <a href="https://github.com/YALDAKHOSHPEY">
