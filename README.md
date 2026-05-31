@@ -196,42 +196,50 @@ pyinstaller --onefile --windowed atari.py
   <tr>
     <td align="center">
       <a href="https://github.com/TheM1ddleM1n">
-        <img src="https://github.com/TheM1ddleM1n.png?size=80" width="80px;" alt="TheM1ddleM1n"/>
+        <img src="https://github.com/TheM1ddleM1n.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <sub><b>TheM1ddleM1n</b></sub>
+        <b>TheM1ddleM1n</b>
       </a>
       <br />
-      <small>V5.4 LTS Release</small>
-     </td>
-     <td align="center">
+      <small><b>Maintainer</b></small>
+    </td>
+    <td align="center">
       <a href="https://github.com/YALDAKHOSHPEY">
-        <img src="https://github.com/YALDAKHOSHPEY.png?size=80" width="80px;" alt="Yalda Khoshpey"/>
+        <img src="https://github.com/YALDAKHOSHPEY.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <sub><b>Yalda Khoshpey</b></sub>
+        <b>Yalda</b>
       </a>
-     </td>
-     <td align="center">
+      <br />
+      <small>Contributor</small>
+    </td>
+    <td align="center">
       <a href="https://github.com/anannyami">
-        <img src="https://github.com/anannyami.png?size=80" width="80px;" alt="Ananya"/>
+        <img src="https://github.com/anannyami.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <sub><b>Ananya</b></sub>
+        <b>Ananya</b>
       </a>
-     </td>
-     <td align="center">
+      <br />
+      <small>Contributor</small>
+    </td>
+    <td align="center">
       <a href="https://github.com/saurav714">
-        <img src="https://github.com/saurav714.png?size=80" width="80px;" alt="Saurav"/>
+        <img src="https://github.com/saurav714.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <sub><b>Saurav</b></sub>
+        <b>Saurav</b>
       </a>
-     </td>
-     <td align="center">
+      <br />
+      <small>Contributor</small>
+    </td>
+    <td align="center">
       <a href="https://github.com/mukeshlilawat1">
-        <img src="https://github.com/mukeshlilawat1.png?size=80" width="80px;" alt="Mukesh Lilawat"/>
+        <img src="https://github.com/mukeshlilawat1.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <sub><b>Mukesh Lilawat</b></sub>
+        <b>Mukesh</b>
       </a>
-     </td>
-   </tr>
+      <br />
+      <small>Contributor</small>
+    </td>
+  </tr>
 </table>
 
 ---
