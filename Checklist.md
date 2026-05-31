@@ -2,8 +2,6 @@
 
 ## Open Issues (TODO)
 - [ ] TODO: Smooth Gameplay (remove bottlenecks)
-- [ ] TODO: Add more car skins
-- [ ] TODO: Add power-ups (shield, magnet, time freeze)
 
 ## Completed Issues - Original Base (TheM1ddleM1n)
 
@@ -17,6 +15,8 @@
 - [x] Performance Improvements to make gameplay smoother / Streamline
 - [x] for HUD Menu on bootup it should have arrow keys ← and →
 - [x] Fix Linting (E701/E702)
+- [x] TODO: Add more car skins
+- [x] TODO: Add power-ups (shield, magnet, time freeze)
 
 ## Completed Issues - V5.3 (VIDAKHOSHPEY22)
 
