@@ -33,8 +33,6 @@
 - [x] Random free boost chance from collecting coins
 
 ## What's Coming Next
-
-- [ ] Multiplayer support / Implement online high score leaderboard
 - [ ] More obstacles (potholes, police cars)
 - [ ] Day/night cycle
 - [ ] Weather effects (rain, fog)
