@@ -3,7 +3,6 @@
 ## Open Issues (TODO)
 - [ ] TODO: Smooth Gameplay (remove bottlenecks)
 - [ ] TODO: Add more car skins
-- [ ] TODO: Implement online high score leaderboard
 - [ ] TODO: Add power-ups (shield, magnet, time freeze)
 
 ## Completed Issues - Original Base (TheM1ddleM1n)
@@ -35,7 +34,7 @@
 
 ## What's Coming Next
 
-- [ ] Multiplayer support
+- [ ] Multiplayer support / Implement online high score leaderboard
 - [ ] More obstacles (potholes, police cars)
 - [ ] Day/night cycle
 - [ ] Weather effects (rain, fog)
