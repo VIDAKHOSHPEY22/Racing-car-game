@@ -4,18 +4,20 @@ Hi there! Thanks for your interest in contributing to this project.
 
 I'm VIDAKHOSHPEY22, the owner and maintainer of this repository. I started this project as a personal learning experience, and it has grown into something much bigger with help from contributors like you.
 
-## How to Contribute
+Hello I am TheM1ddleM1n! I'm a maintainer of High Speed Racer. I started out with my PythonPrograms and my main readme and over time I got better at coding in general and helped lots of people start coding!
+
+## How do I contribute?
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a PR (Pull Request)
 
-## What I'm Looking For
+## What I'm looking for
 
 - Bug fixes and performance improvements
-- New features (power-ups, new obstacles, multiplayer?)
+- New features
 - Documentation improvements
 - Translation to other languages
 - Testing on different systems
@@ -23,13 +25,13 @@ I'm VIDAKHOSHPEY22, the owner and maintainer of this repository. I started this 
 ## Code Style
 
 - Keep it simple and readable
-- Add comments for complex logic
+- Add a simple comment for complex logic
 - Follow PEP 8 guidelines when possible
 
 ## Reporting Issues
 
 When reporting a bug, please include:
-- Your operating system and Python version
+- Your OS (ie. Windows 11) and Python version
 - Steps to reproduce the issue
 - Screenshots if applicable
 
@@ -39,7 +41,7 @@ If you need help or want to discuss an idea:
 
 - Open an issue with your question
 - Email me directly: vidatwin18@gmail.com
-- Tag me in discussions: @VIDAKHOSHPEY22
+- Tag in discussions: @VIDAKHOSHPEY22 or @TheM1ddleM1n
 
 ## Recognition
 
@@ -47,4 +49,4 @@ All contributors will be listed in the README. Significant contributions will be
 
 Thank you for helping make this game better!
 
-**VIDAKHOSHPEY22** 
+**VIDAKHOSHPEY22** and **TheM1ddleM1n**
