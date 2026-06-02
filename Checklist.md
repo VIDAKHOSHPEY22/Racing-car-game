@@ -2,6 +2,7 @@
 
 ## Open Issues (TODO)
 - [ ] TODO: Smooth Gameplay (remove bottlenecks)
+- [ ] Duplicate coins spawn on top of each other/in all lanes (needs to be randomized)
 
 ## Completed Issues - Original Base (TheM1ddleM1n)
 
