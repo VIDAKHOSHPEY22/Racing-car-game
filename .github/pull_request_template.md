@@ -42,6 +42,6 @@ Closes #
 
 ---
 
-## Notes for @TheM1ddleM1n
+## Notes
 
 <!-- Optional. Anything you want to flag to the maintainer — design decisions, trade-offs, or areas you are unsure about. Leave blank if not applicable. -->
