@@ -14,7 +14,7 @@
 
 ---
 
-## Related issue (if applicable) :3
+## Related issue (if applicable)
 
 <!-- Every PR should have a corresponding issue. If one does not exist, please open one before submitting. -->
 
