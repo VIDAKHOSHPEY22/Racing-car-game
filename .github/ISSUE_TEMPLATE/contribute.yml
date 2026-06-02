@@ -13,4 +13,4 @@ body:
   - type: textarea
     attributes:
       label: Draft idea here
-      description: Please draft idea here:
+      description: Please draft idea here
