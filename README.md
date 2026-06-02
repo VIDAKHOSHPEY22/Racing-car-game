@@ -145,7 +145,7 @@ python atari.py
 
 - Python 3.13
 - pygame
-- numpy (this is optional, for sound effects)
+- numpy (totally optional, for sound effects)
 
 ### Install with pip
 
@@ -201,7 +201,7 @@ pyinstaller --onefile --windowed atari.py
         <b>TheM1ddleM1n</b>
       </a>
       <br />
-      <small><b>Maintainer</b></small>
+      <small><b>Core Maintainer</b></small>
     </td>
     <td align="center">
       <a href="https://github.com/YALDAKHOSHPEY">
