@@ -12,5 +12,5 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Anything else?
-      description: Optional draft here
+      label: Draft idea here
+      description: Please draft idea here:
