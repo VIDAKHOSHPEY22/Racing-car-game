@@ -17,7 +17,7 @@ body:
       placeholder: |
         1. Ran atari.py in my terminal (via cmd terminal)
         2. Saw the Pygame window pop up
-        3. Game couldn't run because of an error
+        3. Game couldn't run because of an error that appeared
     validations:
       required: true
   - type: textarea
@@ -31,7 +31,7 @@ body:
   - type: textarea
     attributes:
       label: Actual Behavior
-      description: I am not omniscient so what actually happened?
+      description: Tell me what happened?
       placeholder: |
         The game crashed with a Syntax Error/Logic Error
     validations:
@@ -44,8 +44,8 @@ body:
     attributes:
       label: OS/Python Version
       description: Your OS and Python version (run `python --version`)
-      placeholder: ie. Windows 11, Python 3.12
+      placeholder: ie. Windows 11, Python 3.13
   - type: textarea
     attributes:
       label: Additional Information
-      description: "Anything else that might help. Pro tip: 'please fix this bug' will NOT help."
+      description: "Anything else? Pro tip: 'please fix this bug' will NOT help."
