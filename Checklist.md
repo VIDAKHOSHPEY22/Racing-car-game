@@ -1,8 +1,7 @@
 # `atari.py` Checklist
 
 ## Open Issues (TODO)
-- [ ] TODO: Smooth Gameplay (remove bottlenecks)
-- [ ] Duplicate coins spawn on top of each other/in all lanes (needs to be randomized)
+- [ ] Post to web make it more well known!
 
 ## Completed Issues - Original Base (TheM1ddleM1n)
 
@@ -18,6 +17,8 @@
 - [x] Fix Linting (E701/E702)
 - [x] TODO: Add more car skins
 - [x] TODO: Add power-ups (shield, magnet, time freeze)
+- [ ] Smooth Gameplay (remove bottlenecks)
+- [x] Duplicate coins spawn on top of each other/in all lanes (needs to be randomized)
 
 ## Completed Issues - V5.3 (VIDAKHOSHPEY22)
 
