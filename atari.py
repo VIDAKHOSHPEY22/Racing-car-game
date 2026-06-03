@@ -77,12 +77,21 @@ POWERUP_META = {
     POWERUP_TIMEFREEZE: ((80, 230, 200), "FREEZE",  5.0),
 }
 
-_COMBO_THRESHOLDS   = (3, 7, 12, 18, 25)
-_COMBO_MULTIPLIERS  = (1.5, 2.0, 2.5, 3.0, 4.0)
+_COMBO_THRESHOLDS  = (3, 7, 12, 18, 25)
+_COMBO_MULTIPLIERS = (1.5, 2.0, 2.5, 3.0, 4.0)
+_COMBO_MAP = {t: m for t, m in zip(_COMBO_THRESHOLDS, _COMBO_MULTIPLIERS)}
 
 _PARTICLE_POOL_SIZE = 300
 
 _ROAD_BASE_SURF = None
+
+
+def clamp(v, lo, hi):
+    return lo if v < lo else (hi if v > hi else v)
+
+
+def clamp_color(r, g, b):
+    return (clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255))
 
 
 def _make_sound(wave):
@@ -135,14 +144,6 @@ def _build_sounds():
     )
 
     return dict(coin=coin, boost=boost, levelup=levelup, hit=hit, explosion=explosion, powerup=powerup)
-
-
-def clamp(v, lo, hi):
-    return max(lo, min(hi, v))
-
-
-def clamp_color(r, g, b):
-    return (clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255))
 
 
 def draw_heart(surface, cx, cy, size, color):
@@ -231,8 +232,8 @@ class _PooledParticle:
     _MAX_CACHE    = 128
 
     def __init__(self):
-        self.alive        = False
-        self._surf_cache  = self.__class__._global_cache
+        self.alive       = False
+        self._surf_cache = self.__class__._global_cache
 
     def reset(self, x, y, vx, vy, color, lifetime):
         self.x            = x
@@ -331,14 +332,17 @@ class SpeedBump(StaticObstacle):
 
 class OilSlick:
     WIDTH, HEIGHT = 54, 28
+    _surf_outer = None
+    _surf_inner = None
 
     def __init__(self, x, speed):
-        self.x      = x
-        self.y      = float(-self.HEIGHT)
-        self.speed  = speed
-        self.angle  = 0.0
-        self._s0    = pg.Surface((self.WIDTH, self.HEIGHT), pg.SRCALPHA)
-        self._s1    = pg.Surface((self.WIDTH - 10, self.HEIGHT - 6), pg.SRCALPHA)
+        self.x     = x
+        self.y     = float(-self.HEIGHT)
+        self.speed = speed
+        self.angle = 0.0
+        if OilSlick._surf_outer is None:
+            OilSlick._surf_outer = pg.Surface((self.WIDTH, self.HEIGHT), pg.SRCALPHA)
+            OilSlick._surf_inner = pg.Surface((self.WIDTH - 10, self.HEIGHT - 6), pg.SRCALPHA)
 
     def update(self, dt):
         self.y     += self.speed * dt
@@ -359,12 +363,12 @@ class OilSlick:
             clamp(int(50  + 80 * math.sin(t + 5.2)), 0, 255),
             180,
         )
-        self._s0.fill((0, 0, 0, 0))
-        pg.draw.ellipse(self._s0, c0, self._s0.get_rect())
-        surface.blit(self._s0, (self.x, self.y))
-        self._s1.fill((0, 0, 0, 0))
-        pg.draw.ellipse(self._s1, c1, self._s1.get_rect())
-        surface.blit(self._s1, (self.x + 5, self.y + 3))
+        OilSlick._surf_outer.fill((0, 0, 0, 0))
+        pg.draw.ellipse(OilSlick._surf_outer, c0, OilSlick._surf_outer.get_rect())
+        surface.blit(OilSlick._surf_outer, (self.x, self.y))
+        OilSlick._surf_inner.fill((0, 0, 0, 0))
+        pg.draw.ellipse(OilSlick._surf_inner, c1, OilSlick._surf_inner.get_rect())
+        surface.blit(OilSlick._surf_inner, (self.x + 5, self.y + 3))
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -540,20 +544,20 @@ class Road:
         return s
 
     def update(self, dt):
-        period        = self.STRIPE_H + self.STRIPE_GAP
-        self.scroll   = (self.scroll + self.scroll_speed * dt) % period
+        period      = self.STRIPE_H + self.STRIPE_GAP
+        self.scroll = (self.scroll + self.scroll_speed * dt) % period
 
     def draw(self, surface):
         surface.blit(self._base, (0, 0))
 
-        period = self.RUMBLE_PERIOD
-        offset = self.scroll % period
+        period  = self.RUMBLE_PERIOD
+        offset  = self.scroll % period
         elapsed = pg.time.get_ticks() / 1000
-        pulse  = abs(math.sin(elapsed * 10))
+        pulse   = abs(math.sin(elapsed * 10))
 
         for i in range(HEIGHT // period + 2):
-            ry        = int(i * period - offset)
-            col       = RED if i % 2 == 0 else (255, 200, 100)
+            ry         = int(i * period - offset)
+            col        = RED if i % 2 == 0 else (255, 200, 100)
             bright_col = tuple(clamp(c + int(50 * pulse), 0, 255) for c in col)
             pg.draw.rect(surface, bright_col, (ROAD_LEFT - self.RUMBLE_W - 22, ry, self.RUMBLE_W, period // 2))
             pg.draw.rect(surface, bright_col, (ROAD_RIGHT + 22, ry, self.RUMBLE_W, period // 2))
@@ -572,17 +576,17 @@ class Player:
     SPEED  = 400
 
     def __init__(self, skin):
-        self.x              = float(WIDTH // 2 - self.WIDTH // 2)
-        self.y              = float(HEIGHT - self.HEIGHT - 30)
-        self.color          = skin.color
-        self.car_type       = skin.type
-        self.speed_bonus    = skin.speed_bonus
-        self.vel_x          = 0.0
-        self.tilt           = 0.0
-        self.slide_vel      = 0.0
-        self.slide_timer    = 0.0
-        self.slowdown_timer = 0.0
-        self.boost_timer    = 0.0
+        self.x                = float(WIDTH // 2 - self.WIDTH // 2)
+        self.y                = float(HEIGHT - self.HEIGHT - 30)
+        self.color            = skin.color
+        self.car_type         = skin.type
+        self.speed_bonus      = skin.speed_bonus
+        self.vel_x            = 0.0
+        self.tilt             = 0.0
+        self.slide_vel        = 0.0
+        self.slide_timer      = 0.0
+        self.slowdown_timer   = 0.0
+        self.boost_timer      = 0.0
         self.boost_multiplier = 1.0
         self._powerup_timers  = {POWERUP_SHIELD: 0.0, POWERUP_MAGNET: 0.0, POWERUP_TIMEFREEZE: 0.0}
         self._surf            = pg.Surface((self.WIDTH + 12, self.HEIGHT + 12), pg.SRCALPHA)
@@ -643,9 +647,9 @@ class Player:
             self.x += self.vel_x * dt
         if self.slowdown_timer > 0:
             self.slowdown_timer -= dt
-        self.x           = clamp(self.x, ROAD_LEFT + 2, ROAD_RIGHT - self.WIDTH - 2)
-        target_tilt      = (self.vel_x + self.slide_vel) / self.SPEED * 8
-        self.tilt       += (target_tilt - self.tilt) * 10 * dt
+        self.x         = clamp(self.x, ROAD_LEFT + 2, ROAD_RIGHT - self.WIDTH - 2)
+        target_tilt    = (self.vel_x + self.slide_vel) / self.SPEED * 8
+        self.tilt     += (target_tilt - self.tilt) * 10 * dt
 
     def get_speed_factor(self):
         factor = self.speed_bonus
@@ -689,12 +693,25 @@ class HUD:
         self.small = fonts[1]
         self.tiny  = fonts[2]
         self.surf  = pg.Surface((240, 185), pg.SRCALPHA)
+        self._text_cache = {}
+
+    def _render(self, font, text, color):
+        key = (id(font), text, color)
+        if key not in self._text_cache:
+            self._text_cache[key] = font.render(text, True, color)
+        return self._text_cache[key]
+
+    def invalidate(self, *keys):
+        for k in list(self._text_cache):
+            if k[1] in keys:
+                del self._text_cache[k]
 
     def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives, boost_timer, player):
         self.surf.fill((0, 0, 0, 180))
         pg.draw.rect(self.surf, (255, 255, 255, 40), (0, 0, 240, 185), 3, border_radius=10)
         pulse = int(8 * abs(math.sin(pg.time.get_ticks() / 300)))
-        self._blit(f"SCORE: {score}", (255, 220, 50 + pulse), 12, 10)
+        score_col = (255, 220, 50 + pulse)
+        self._blit(f"SCORE: {score}", score_col, 12, 10)
         self._blit(f"LEVEL: {level}", CYAN, 12, 40)
         self._blit(f"SPEED: {speed_pct}%", GREEN, 12, 65)
         bar_width, bar_height = 100, 8
@@ -729,14 +746,15 @@ class HUD:
     def _blit(self, text, color, x, y, tiny=False):
         if isinstance(color, tuple):
             color = tuple(int(clamp(c, 0, 255)) for c in color)
-        self.surf.blit((self.tiny if tiny else self.small).render(text, True, color), (x, y))
+        font = self.tiny if tiny else self.small
+        self.surf.blit(self._render(font, text, color), (x, y))
 
 
 class Button:
     def __init__(self, x, y, w, h, text, color=None):
-        self.rect       = pg.Rect(x, y, w, h)
-        self.text       = text
-        self.base_color = color or (45, 165, 75)
+        self.rect        = pg.Rect(x, y, w, h)
+        self.text        = text
+        self.base_color  = color or (45, 165, 75)
         self.hover_color = tuple(clamp(c + 40, 0, 255) for c in self.base_color)
 
     def draw(self, surface, font):
@@ -757,34 +775,44 @@ class Button:
 
 class Game:
     def __init__(self):
-        self.screen        = pg.display.set_mode((WIDTH, HEIGHT))
+        self.screen         = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption("HIGH SPEED RACER - Extreme Edition")
-        self.clock         = pg.time.Clock()
-        self.fonts         = (pg.font.Font(None, 48), pg.font.Font(None, 32), pg.font.Font(None, 24))
-        self.selected_skin = 0
-        self.selected_diff = "Medium"
-        self.state         = "menu"
-        self.hud           = HUD(self.fonts)
+        self.clock          = pg.time.Clock()
+        self.fonts          = (pg.font.Font(None, 48), pg.font.Font(None, 32), pg.font.Font(None, 24))
+        self.selected_skin  = 0
+        self.selected_diff  = "Medium"
+        self.state          = "menu"
+        self.hud            = HUD(self.fonts)
         self._init_ui()
-        self._blur_surf    = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        self._blur_surf     = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
         self._particle_pool = ParticlePool(_PARTICLE_POOL_SIZE)
         self._prerender_blur_lines()
-        self.sounds        = _build_sounds()
-        self._high_score   = self._load_high_score()
+        self.sounds         = _build_sounds()
+        self._high_score    = self._load_high_score()
         self._reset_state()
 
     def _init_ui(self):
+        btn_w = min(200, max(160, WIDTH // 5))
         self.btn_play    = Button(WIDTH // 2 - 100, 490, 200, 52, "START RACE")
         self.btn_pause   = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
-        self.btn_restart = Button(WIDTH // 2 - 90, HEIGHT // 2 + 40,  180, 46, "RESTART")
-        self.btn_menu    = Button(WIDTH // 2 - 90, HEIGHT // 2 + 96,  180, 46, "MAIN MENU", (60, 80, 160))
-        self.btn_quit    = Button(WIDTH // 2 - 90, HEIGHT // 2 + 152, 180, 46, "QUIT", (160, 50, 50))
+        self.btn_restart = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "RESTART")
+        self.btn_menu    = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "MAIN MENU", (60, 80, 160))
+        self.btn_quit    = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "QUIT", (160, 50, 50))
         self._diff_rects = {
             d: pg.Rect(WIDTH // 2 - 90, 148 + i * 46, 180, 36)
             for i, d in enumerate(["Easy", "Medium", "Hard"])
         }
         self._arrow_left_rect  = pg.Rect(WIDTH // 2 - 145, 365, 40, 40)
         self._arrow_right_rect = pg.Rect(WIDTH // 2 + 105, 365, 40, 40)
+        self._overlay_btn_w    = btn_w
+
+    def _layout_overlay_buttons(self, by, include_quit=False):
+        bw = self._overlay_btn_w
+        bx = WIDTH // 2 - bw // 2
+        self.btn_restart.rect = pg.Rect(bx, by + 148, bw, 46)
+        self.btn_menu.rect    = pg.Rect(bx, by + 200, bw, 46)
+        if include_quit:
+            self.btn_quit.rect = pg.Rect(bx, by + 252, bw, 46)
 
     def _prerender_blur_lines(self):
         self._blur_lines = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
@@ -921,9 +949,9 @@ class Game:
 
         self.player.update(dt, pg.key.get_pressed())
 
-        freeze_factor            = 0.3 if self.player.has_powerup(POWERUP_TIMEFREEZE) else 1.0
-        base_speed_factor        = self.player.get_speed_factor() * freeze_factor
-        self.road.scroll_speed   = self.scroll_speed * base_speed_factor
+        freeze_factor          = 0.3 if self.player.has_powerup(POWERUP_TIMEFREEZE) else 1.0
+        base_speed_factor      = self.player.get_speed_factor() * freeze_factor
+        self.road.scroll_speed = self.scroll_speed * base_speed_factor
         self.road.update(dt)
 
         self.speed_pct = int(self.scroll_speed / DIFFICULTY[self.selected_diff].base_speed * 100)
@@ -941,9 +969,13 @@ class Game:
         self.coin_timer += dt
         if self.coin_timer >= 1.2:
             self.coin_timer = 0.0
+            existing_xs = {c.x for c in self.coins if c.y < 0}
             count = random.randint(2, 4) if random.random() < 0.3 else 1
-            for _ in range(count):
-                self.coins.append(Coin(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.95))
+            available = [lc for lc in LANE_CENTERS if lc not in existing_xs]
+            if not available:
+                available = LANE_CENTERS
+            for lc in random.sample(available, min(count, len(available))):
+                self.coins.append(Coin(lc, self.scroll_speed * 0.95))
 
         self.powerup_timer += dt
         if self.powerup_timer >= 8.0:
@@ -1279,15 +1311,6 @@ class Game:
         ]:
             t = f_small.render(text, True, color)
             self.screen.blit(t, (cx - t.get_width() // 2, by + dy))
-
-    def _layout_overlay_buttons(self, by, include_quit=False):
-        btn_w  = min(200, max(160, WIDTH // 5))
-        btn_h  = 46
-        btn_x  = WIDTH // 2 - btn_w // 2
-        self.btn_restart.rect = pg.Rect(btn_x, by + 148, btn_w, btn_h)
-        self.btn_menu.rect    = pg.Rect(btn_x, by + 200, btn_w, btn_h)
-        if include_quit:
-            self.btn_quit.rect = pg.Rect(btn_x, by + 252, btn_w, btn_h)
 
     def _draw_pause(self):
         f_small, f_tiny = self.fonts[1], self.fonts[2]
