@@ -66,5 +66,5 @@ We are always happy to help you get started!
 
 ## Contributors
 
-- **TheM1ddleM1n** - Original base game, bug fixes, performance improvements, V5.2 LTS release
+- **TheM1ddleM1n** - Original base game, bug fixes, performance improvements
 - **VIDAKHOSHPEY22** - Sound system, particle effects, boost mechanic, responsive UI, V5.3 release
