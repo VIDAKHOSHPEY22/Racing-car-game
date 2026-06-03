@@ -147,7 +147,7 @@ python atari.py
 - pygame
 - numpy (totally optional, for sound effects)
 
-### Install with pip
+### Installation using pip
 
 ```bash
 pip install pygame
