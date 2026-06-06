@@ -35,11 +35,11 @@
 - [x] Random free boost chance from collecting coins
 
 ## What's Coming Next
-- [ ] More obstacles (potholes, police cars)
+- [ ] Police Cars (chase after car and set roadblocks)
 - [ ] Day/night cycle
 - [ ] Weather effects (rain, fog)
 - [ ] Different track environment
-- [ ] Post game to a website!
+- [ ] Post game to website!
 
 ---
 
@@ -52,7 +52,7 @@ This project is perfect for Python beginners and game development enthusiasts al
 - Fix bugs: Check our open Issues and submit a Pull Request
 - Add features: Expand the project using Pygame or other libraries
 - Improve docs: Clearer explanations and guides are always appreciated
-- Test the game on different screen resolutions and report issues
+- Test the game on different screen resolutions and report any issues you find
 - Suggest new car skins or obstacle types
 
 ## Need Help or Want to Collaborate?
