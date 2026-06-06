@@ -1,7 +1,7 @@
 # `atari.py` Checklist
 
-## Open Issues (TODO)
-- [ ] Post to web make it more well known!
+## Open Issues (TODO):
+- [ ] Car upgrade system
 
 ## Completed Issues - Original Base (TheM1ddleM1n)
 
@@ -17,7 +17,7 @@
 - [x] Fix Linting (E701/E702)
 - [x] TODO: Add more car skins
 - [x] TODO: Add power-ups (shield, magnet, time freeze)
-- [ ] Smooth Gameplay (remove bottlenecks)
+- [x] Smooth Gameplay (remove bottlenecks)
 - [x] Duplicate coins spawn on top of each other/in all lanes (needs to be randomized)
 
 ## Completed Issues - V5.3 (VIDAKHOSHPEY22)
@@ -38,8 +38,8 @@
 - [ ] More obstacles (potholes, police cars)
 - [ ] Day/night cycle
 - [ ] Weather effects (rain, fog)
-- [ ] Different track environments
-- [ ] Car upgrade system
+- [ ] Different track environment
+- [ ] Post game to a website!
 
 ---
 
@@ -60,11 +60,11 @@ This project is perfect for Python beginners and game development enthusiasts al
 - Email: vidatwin18@gmail.com
 - GitHub: Contact @VIDAKHOSHPEY22 or @TheM1ddleM1n
 
-We are always happy to help you get started!
+We are always happy to help you!
 
 ---
 
 ## Contributors
 
 - **TheM1ddleM1n** - Original base game, bug fixes, performance improvements
-- **VIDAKHOSHPEY22** - Sound system, particle effects, boost mechanic, responsive UI, V5.3 release
+- **VIDAKHOSHPEY22** - Sound system, particle effects, boost mechanic, responsive UI
