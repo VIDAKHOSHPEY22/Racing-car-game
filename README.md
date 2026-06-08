@@ -145,7 +145,7 @@ python atari.py
 
 - Python 3.13
 - pygame
-- numpy (totally optional, for sound effects)
+- numpy (totally optional sound effects)
 
 ### Installation using pip
 
