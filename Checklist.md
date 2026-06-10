@@ -58,7 +58,7 @@ This project is perfect for Python beginners and game development enthusiasts al
 ## Need Help or Want to Collaborate?
 
 - Email: vidatwin18@gmail.com
-- GitHub: Contact @VIDAKHOSHPEY22 or @TheM1ddleM1n
+- GitHub: Contact @TheM1ddleM1n (who looks at issues the most)
 
 We are always happy to help you!
 
