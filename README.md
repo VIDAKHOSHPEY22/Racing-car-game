@@ -163,11 +163,11 @@ pip install pygame numpy
 ## Project Structure
 
 ```
-Racing-car-game/
+Racing-car-game/          # Main Root
 ├── atari.py              # Main game file to run
 ├── requirements.txt      # Dependencies
 ├── LICENSE               # MIT License
-├── screenshots/
+├── screenshots/          # Folder structure
 │   ├── new-menu.png      # New menu screen
 │   ├── new-game.png      # New gameplay screen
 │   ├── new-end.png       # New game over screen
@@ -176,7 +176,7 @@ Racing-car-game/
 │   ├── game.jpg          # Old gameplay (before)
 │   ├── end.jpg           # Old game over (before)
 │   └── preview.gif       # Old preview (before)
-└── README.md
+└── README.md             # You are reading this now! :D
 ```
 
 ---
@@ -190,7 +190,7 @@ pyinstaller --onefile --windowed atari.py
 
 ---
 
-## Contributors
+## Main Contributors
 
 <table align="center">
   <tr>
