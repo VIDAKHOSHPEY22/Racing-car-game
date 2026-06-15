@@ -39,7 +39,9 @@
 - [ ] Day/night cycle
 - [ ] Weather effects (rain, fog)
 - [ ] Different track environment
-- [ ] Post game to website!
+- [ ] Post game to website! (soon)
+- [ ] Make it useful for different screen resolutions
+- [ ] new car designs
 
 ---
 
@@ -49,16 +51,15 @@ This project is perfect for Python beginners and game development enthusiasts al
 
 ## How can you help?
 
-- Fix bugs: Check our open Issues and submit a Pull Request
-- Add features: Expand the project using Pygame or other libraries
-- Improve docs: Clearer explanations and guides are always appreciated
+- chore: fix bugs (Check our open Issues and submit a Pull Request)
+- documentation: Clearer explanations and guides are always appreciated
 - Test the game on different screen resolutions and report any issues you find
-- Suggest new car skins or obstacle types
+- enhancement: Suggest new car skins or obstacle types
 
 ## Need Help or Want to Collaborate?
 
 - Email: vidatwin18@gmail.com
-- GitHub: Contact @TheM1ddleM1n (who looks at issues the most)
+- GitHub: Contact @TheM1ddleM1n
 
 We are always happy to help you!
 
