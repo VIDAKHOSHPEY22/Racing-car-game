@@ -39,7 +39,7 @@ When reporting a bug, please include:
 ## Getting Help
 
 - Open a GitHub Issue with your question
-- Email the maintainers directly: vidatwin18@gmail.com
+- Email: vidatwin18@gmail.com with anything queries
 - Tag us in Discussions: @VIDAKHOSHPEY22 or @TheM1ddleM1n
 
 ## Recognition
@@ -47,5 +47,7 @@ When reporting a bug, please include:
 All contributors are listed in the README. Significant contributions are highlighted in release notes.
 
 ---
+
+Thank you once again!
 
 **VIDAKHOSHPEY22** & **TheM1ddleM1n**
