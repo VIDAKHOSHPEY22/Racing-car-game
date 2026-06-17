@@ -72,13 +72,7 @@ python atari.py
 
 ## Gameplay Preview
 
-### Before (Old)
-
-<p align="center">
-  <img src="screenshots/preview.gif" width="90%" alt="Old Gameplay">
-</p>
-
-### After (New)
+### New
 
 <p align="center">
   <img src="screenshots/new-preview.gif" width="90%" alt="New Gameplay">
@@ -86,29 +80,7 @@ python atari.py
 
 ---
 
-## Screenshots - Before
-
-### Menu
-
-<p align="center">
-  <img src="screenshots/start.jpg" width="90%" alt="Old Menu">
-</p>
-
-### Gameplay
-
-<p align="center">
-  <img src="screenshots/game.jpg" width="90%" alt="Old Gameplay">
-</p>
-
-### Game Over
-
-<p align="center">
-  <img src="screenshots/end.jpg" width="90%" alt="Old Game Over">
-</p>
-
----
-
-## Screenshots - After
+## New Screenshots
 
 ### Menu
 
