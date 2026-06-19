@@ -85,6 +85,20 @@ _PARTICLE_POOL_SIZE = 300
 
 _ROAD_BASE_SURF = None
 
+DAY_NIGHT_PERIOD = 60.0
+WEATHER_CLEAR = "clear"
+WEATHER_RAIN  = "rain"
+WEATHER_FOG   = "fog"
+
+POLICE_CHASE_DURATION  = 4.0
+POLICE_ESCAPE_BONUS    = 40
+POLICE_MIN_LEVEL       = 3
+POLICE_SPAWN_INTERVAL  = (15.0, 25.0)
+
+COIN_BASE_VALUE = 5
+
+_RAIN_POOL_SIZE = 120
+
 
 def clamp(v, lo, hi):
     return lo if v < lo else (hi if v > hi else v)
@@ -92,6 +106,18 @@ def clamp(v, lo, hi):
 
 def clamp_color(r, g, b):
     return (clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255))
+
+
+def lerp_color(c0, c1, t):
+    return (
+        int(c0[0] + (c1[0] - c0[0]) * t),
+        int(c0[1] + (c1[1] - c0[1]) * t),
+        int(c0[2] + (c1[2] - c0[2]) * t),
+    )
+
+
+def level_threshold(level):
+    return (20 + level * 6) * level
 
 
 def _make_sound(wave):
@@ -107,7 +133,7 @@ class _DummySound:
 def _build_sounds():
     if not HAS_NUMPY:
         dummy = _DummySound()
-        return {k: dummy for k in ("coin", "boost", "levelup", "hit", "explosion", "powerup")}
+        return {k: dummy for k in ("coin", "boost", "levelup", "hit", "explosion", "powerup", "siren")}
     sr = 22050
 
     def _buf(duration):
@@ -143,7 +169,11 @@ def _build_sounds():
         (np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 2 * t)) * np.exp(-t * 4) * 0.67
     )
 
-    return dict(coin=coin, boost=boost, levelup=levelup, hit=hit, explosion=explosion, powerup=powerup)
+    n, t = _buf(0.5)
+    freq = 600 + 300 * np.sin(2 * np.pi * 4 * t)
+    siren = _make_sound(np.sin(2 * np.pi * freq * t) * 0.5)
+
+    return dict(coin=coin, boost=boost, levelup=levelup, hit=hit, explosion=explosion, powerup=powerup, siren=siren)
 
 
 def draw_heart(surface, cx, cy, size, color):
@@ -183,6 +213,11 @@ def draw_car(surface, x, y, w, h, body_color, window_color, car_type, player=Fal
         pg.draw.rect(surface, window_color, (x + 8, y + 8, w - 16, 18), border_radius=3)
         pg.draw.rect(surface, sh, (x + 4, y + 35, w - 8, h - 42), border_radius=2)
         pg.draw.line(surface, hi, (x + 4, y + 34), (x + w - 4, y + 34), 1)
+    elif car_type == "police":
+        pg.draw.rect(surface, window_color, (x + 6, y + 12, w - 12, 20), border_radius=3)
+        pg.draw.rect(surface, window_color, (x + 6, y + 38, w - 12, 18), border_radius=3)
+        pg.draw.line(surface, (0, 0, 0), (x + 6, y + 23), (x + w - 6, y + 23), 1)
+        pg.draw.rect(surface, WHITE, (x + 4, y + 30, w - 8, 6))
     else:
         pg.draw.rect(surface, window_color, (x + 6, y + 10, w - 12, 30), border_radius=3)
         pg.draw.line(surface, (0, 0, 0), (x + w // 2, y + 10), (x + w // 2, y + 40), 1)
@@ -265,6 +300,38 @@ class _PooledParticle:
         surface.blit(self._surf_cache[key], (int(self.x - size), int(self.y - size)))
 
 
+class RainPool:
+    __slots__ = ("_drops", "_active_count")
+
+    def __init__(self, size):
+        self._drops = [[0.0, 0.0, 0.0] for _ in range(size)]
+        self._active_count = 0
+
+    def set_active(self, count):
+        self._active_count = clamp(count, 0, len(self._drops))
+
+    def reset_drop(self, idx):
+        d = self._drops[idx]
+        d[0] = random.uniform(0, WIDTH)
+        d[1] = random.uniform(-HEIGHT, 0)
+        d[2] = random.uniform(600, 900)
+
+    def update_and_draw(self, surface, dt, intensity):
+        if self._active_count <= 0:
+            return
+        col = (180, 200, 220, int(140 * intensity))
+        for i in range(self._active_count):
+            d = self._drops[i]
+            if d[2] == 0.0:
+                self.reset_drop(i)
+                d = self._drops[i]
+            d[1] += d[2] * dt
+            if d[1] > HEIGHT:
+                self.reset_drop(i)
+                d = self._drops[i]
+            pg.draw.line(surface, col, (d[0], d[1]), (d[0] - 4, d[1] + 14), 2)
+
+
 class StaticObstacle:
     WIDTH  = 0
     HEIGHT = 0
@@ -283,8 +350,24 @@ class StaticObstacle:
         self.y += self.speed * dt
         return self.y > HEIGHT
 
-    def draw(self, surface):
-        surface.blit(self.__class__._surf, (self.x, int(self.y)))
+    def draw(self, surface, visibility):
+        alpha = self._fade_alpha(visibility)
+        if alpha >= 255:
+            surface.blit(self.__class__._surf, (self.x, int(self.y)))
+        elif alpha > 0:
+            s = self.__class__._surf.copy()
+            s.set_alpha(alpha)
+            surface.blit(s, (self.x, int(self.y)))
+
+    def _fade_alpha(self, visibility):
+        if visibility >= HEIGHT:
+            return 255
+        fade_start = visibility - 80
+        if self.y <= fade_start:
+            return 0
+        if self.y >= visibility:
+            return 255
+        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -349,19 +432,22 @@ class OilSlick:
         self.angle += dt * 2.0
         return self.y > HEIGHT
 
-    def draw(self, surface):
+    def draw(self, surface, visibility):
+        alpha = self._fade_alpha(visibility)
+        if alpha <= 0:
+            return
         t  = self.angle
         c0 = (
             clamp(int(100 + 80 * math.sin(t)), 0, 255),
             clamp(int(50  + 80 * math.sin(t + 2.1)), 0, 255),
             clamp(int(150 + 80 * math.sin(t + 4.2)), 0, 255),
-            200,
+            int(200 * alpha / 255),
         )
         c1 = (
             clamp(int(200 + 80 * math.sin(t + 1.0)), 0, 255),
             clamp(int(100 + 80 * math.sin(t + 3.1)), 0, 255),
             clamp(int(50  + 80 * math.sin(t + 5.2)), 0, 255),
-            180,
+            int(180 * alpha / 255),
         )
         OilSlick._surf_outer.fill((0, 0, 0, 0))
         pg.draw.ellipse(OilSlick._surf_outer, c0, OilSlick._surf_outer.get_rect())
@@ -369,6 +455,16 @@ class OilSlick:
         OilSlick._surf_inner.fill((0, 0, 0, 0))
         pg.draw.ellipse(OilSlick._surf_inner, c1, OilSlick._surf_inner.get_rect())
         surface.blit(OilSlick._surf_inner, (self.x + 5, self.y + 3))
+
+    def _fade_alpha(self, visibility):
+        if visibility >= HEIGHT:
+            return 255
+        fade_start = visibility - 80
+        if self.y <= fade_start:
+            return 0
+        if self.y >= visibility:
+            return 255
+        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -390,7 +486,7 @@ class Coin:
         self.angle += 8.0 * dt
         return self.y > HEIGHT
 
-    def draw(self, surface):
+    def draw(self, surface, visibility=HEIGHT):
         w   = max(4, int(self.RADIUS * 2 * abs(math.cos(self.angle))))
         key = w
         if key not in Coin._cache:
@@ -424,7 +520,7 @@ class PowerUp:
         self.angle += 3.0 * dt
         return self.y > HEIGHT
 
-    def draw(self, surface):
+    def draw(self, surface, visibility=HEIGHT):
         col, label, _ = POWERUP_META[self.kind]
         pulse = abs(math.sin(self.angle))
         r     = int(self.RADIUS + 4 * pulse)
@@ -469,11 +565,82 @@ class ObstacleCar:
         self.y += self.speed * dt
         return self.y > HEIGHT
 
-    def draw(self, surface):
-        surface.blit(self._surf, (int(self.x) - 4, int(self.y) - 4))
+    def draw(self, surface, visibility=HEIGHT):
+        alpha = self._fade_alpha(visibility)
+        if alpha >= 255:
+            surface.blit(self._surf, (int(self.x) - 4, int(self.y) - 4))
+        elif alpha > 0:
+            s = self._surf.copy()
+            s.set_alpha(alpha)
+            surface.blit(s, (int(self.x) - 4, int(self.y) - 4))
+
+    def _fade_alpha(self, visibility):
+        if visibility >= HEIGHT:
+            return 255
+        fade_start = visibility - 80
+        if self.y <= fade_start:
+            return 0
+        if self.y >= visibility:
+            return 255
+        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(int(self.x) + 4, int(self.y) + 4, self.width - 8, self.height - 8)
+
+
+class PoliceCar:
+    WIDTH, HEIGHT     = 48, 88
+    CHASE_SPEED_MAX   = 260
+    LANE_CHANGE_SPEED = 180
+    _surf = None
+
+    def __init__(self, lane, base_speed):
+        self.lane           = lane
+        self.x              = float(LANE_CENTERS[lane] - self.WIDTH // 2)
+        self.y              = float(HEIGHT + self.HEIGHT)
+        self.base_speed     = base_speed
+        self.chase_timer    = 0.0
+        self.escaped        = False
+        self.light_phase    = 0.0
+        self.target_x       = self.x
+        self.retarget_timer = 0.0
+        if PoliceCar._surf is None:
+            s = pg.Surface((self.WIDTH + 8, self.HEIGHT + 8), pg.SRCALPHA)
+            draw_car(s, 4, 4, self.WIDTH, self.HEIGHT, (20, 30, 90), (100, 100, 120), "police")
+            PoliceCar._surf = s
+
+    def update(self, dt, player_x, player_vel_x, scroll_speed):
+        self.chase_timer += dt
+        self.light_phase  += dt * 10.0
+
+        self.retarget_timer -= dt
+        if self.retarget_timer <= 0:
+            lead = clamp(player_vel_x * 0.25, -60, 60)
+            self.target_x = player_x + lead
+            self.retarget_timer = random.uniform(0.2, 0.4)
+
+        dx = self.target_x - self.x
+        self.x += clamp(dx, -self.LANE_CHANGE_SPEED * dt, self.LANE_CHANGE_SPEED * dt)
+
+        gap = self.y - (HEIGHT - self.HEIGHT - 30)
+        closing = clamp(gap * 1.8, -self.CHASE_SPEED_MAX, self.CHASE_SPEED_MAX)
+        self.y -= closing * dt
+
+        if self.chase_timer >= POLICE_CHASE_DURATION and not self.escaped:
+            self.escaped = True
+            return True
+        return self.y < -self.HEIGHT - 40
+
+    def draw(self, surface, visibility=HEIGHT):
+        blink = (int(self.light_phase) % 2 == 0)
+        light_col = RED if blink else BLUE
+        glow = pg.Surface((self.WIDTH + 30, 16), pg.SRCALPHA)
+        pg.draw.ellipse(glow, (*light_col, 140), glow.get_rect())
+        surface.blit(glow, (int(self.x) - 15, int(self.y) - 6))
+        surface.blit(self._surf, (int(self.x) - 4, int(self.y) - 4))
+
+    def get_rect(self):
+        return pg.Rect(int(self.x) + 4, int(self.y) + 4, self.WIDTH - 8, self.HEIGHT - 8)
 
 
 class Road:
@@ -586,6 +753,7 @@ class Player:
         self.slide_vel        = 0.0
         self.slide_timer      = 0.0
         self.slowdown_timer   = 0.0
+        self.hazard_lockout   = 0.0
         self.boost_timer      = 0.0
         self.boost_multiplier = 1.0
         self._powerup_timers  = {POWERUP_SHIELD: 0.0, POWERUP_MAGNET: 0.0, POWERUP_TIMEFREEZE: 0.0}
@@ -609,17 +777,23 @@ class Player:
         return self._powerup_timers[kind] > 0
 
     def apply_oil(self):
-        self.slide_vel   = random.choice([-1, 1]) * self.SPEED * 1.2
-        self.slide_timer = 1.0
+        if self.hazard_lockout > 0:
+            return
+        self.slide_vel      = random.choice([-1, 1]) * self.SPEED * 1.2
+        self.slide_timer    = 1.0
+        self.hazard_lockout = 1.0
 
     def apply_speedbump(self):
+        if self.hazard_lockout > 0:
+            return
         self.slowdown_timer = 1.2
+        self.hazard_lockout  = 1.2
 
     def apply_boost(self):
         self.boost_timer      = 1.5
         self.boost_multiplier = 1.8
 
-    def update(self, dt, keys):
+    def update(self, dt, keys, rain_grip_penalty=0.0):
         if self.boost_timer > 0:
             self.boost_timer -= dt
         else:
@@ -627,19 +801,23 @@ class Player:
         for kind in self._powerup_timers:
             if self._powerup_timers[kind] > 0:
                 self._powerup_timers[kind] -= dt
+        if self.hazard_lockout > 0:
+            self.hazard_lockout -= dt
         if self.slide_timer > 0:
             self.slide_timer -= dt
             self.x           += self.slide_vel * dt
             self.slide_vel   *= (1 - dt * 3.0)
         else:
+            accel = 1200 * (1.0 - rain_grip_penalty)
+            decel = 800 * (1.0 - rain_grip_penalty)
             if keys[pg.K_LEFT]:
-                self.vel_x = max(self.vel_x - 1200 * dt, -self.SPEED)
+                self.vel_x = max(self.vel_x - accel * dt, -self.SPEED)
             elif keys[pg.K_RIGHT]:
-                self.vel_x = min(self.vel_x + 1200 * dt, self.SPEED)
+                self.vel_x = min(self.vel_x + accel * dt, self.SPEED)
             else:
                 if self.vel_x:
                     self.vel_x = clamp(
-                        self.vel_x - math.copysign(min(800 * dt, abs(self.vel_x)), self.vel_x),
+                        self.vel_x - math.copysign(min(decel * dt, abs(self.vel_x)), self.vel_x),
                         -self.SPEED, self.SPEED,
                     )
                 else:
@@ -659,11 +837,16 @@ class Player:
             factor *= self.boost_multiplier
         return factor
 
-    def draw(self, surface, invincible, ticks):
+    def draw(self, surface, invincible, ticks, headlights=False):
         if invincible and not self.has_powerup(POWERUP_SHIELD) and (ticks // 60) % 2 == 0:
             return
         cx = int(self.x + self.WIDTH // 2)
         cy = int(self.y + self.HEIGHT // 2)
+        if headlights:
+            for lx in (self.x + 6, self.x + self.WIDTH - 18):
+                cone = pg.Surface((70, 140), pg.SRCALPHA)
+                pg.draw.polygon(cone, (255, 250, 200, 50), [(35, 10), (0, 140), (70, 140)])
+                surface.blit(cone, (int(lx) - 35 + 6, int(self.y) - 130))
         if self.has_powerup(POWERUP_SHIELD):
             glow = pg.Surface((self.WIDTH + 28, self.HEIGHT + 28), pg.SRCALPHA)
             pg.draw.ellipse(glow, (80, 180, 255, 120), glow.get_rect())
@@ -692,7 +875,7 @@ class HUD:
     def __init__(self, fonts):
         self.small = fonts[1]
         self.tiny  = fonts[2]
-        self.surf  = pg.Surface((240, 185), pg.SRCALPHA)
+        self.surf  = pg.Surface((240, 215), pg.SRCALPHA)
         self._text_cache = {}
 
     def _render(self, font, text, color):
@@ -706,9 +889,9 @@ class HUD:
             if k[1] in keys:
                 del self._text_cache[k]
 
-    def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives, boost_timer, player):
+    def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives, boost_timer, player, weather, chased):
         self.surf.fill((0, 0, 0, 180))
-        pg.draw.rect(self.surf, (255, 255, 255, 40), (0, 0, 240, 185), 3, border_radius=10)
+        pg.draw.rect(self.surf, (255, 255, 255, 40), (0, 0, 240, 215), 3, border_radius=10)
         pulse = int(8 * abs(math.sin(pg.time.get_ticks() / 300)))
         score_col = (255, 220, 50 + pulse)
         self._blit(f"SCORE: {score}", score_col, 12, 10)
@@ -741,6 +924,13 @@ class HUD:
             pg.draw.rect(self.surf, (40, 40, 40), (12 + idx * 80, 158, 70, 8), border_radius=3)
             pg.draw.rect(self.surf, col, (12 + idx * 80, 158, bw, 8), border_radius=3)
             self._blit(label, col, 12 + idx * 80, 166, tiny=True)
+        if weather != WEATHER_CLEAR:
+            wcol = (140, 170, 220) if weather == WEATHER_RAIN else (200, 200, 200)
+            self._blit(weather.upper(), wcol, 12, 182, tiny=True)
+        if chased:
+            blink = (pg.time.get_ticks() // 250) % 2 == 0
+            if blink:
+                self._blit("POLICE CHASE!", RED, 110, 182, tiny=True)
         surface.blit(self.surf, (10, 10))
 
     def _blit(self, text, color, x, y, tiny=False):
@@ -785,7 +975,9 @@ class Game:
         self.hud            = HUD(self.fonts)
         self._init_ui()
         self._blur_surf     = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        self._tint_surf     = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
         self._particle_pool = ParticlePool(_PARTICLE_POOL_SIZE)
+        self._rain_pool      = RainPool(_RAIN_POOL_SIZE)
         self._prerender_blur_lines()
         self.sounds         = _build_sounds()
         self._high_score    = self._load_high_score()
@@ -832,6 +1024,7 @@ class Game:
         self.obs_misc            = []
         self.coins               = []
         self.powerups            = []
+        self.police              = []
         self._particle_pool._active.clear()
         self.score               = 0
         self.level               = 1
@@ -852,6 +1045,10 @@ class Game:
         self.level_flash_timer   = 0.0
         self.speed_blur_alpha    = 0.0
         self.screen_shake        = 0.0
+        self.day_night_time      = 0.0
+        self.weather             = WEATHER_CLEAR
+        self.weather_timer       = random.uniform(20.0, 40.0)
+        self.police_timer        = random.uniform(*POLICE_SPAWN_INTERVAL)
 
     def _load_high_score(self):
         try:
@@ -945,6 +1142,52 @@ class Game:
         if self.btn_play.rect.collidepoint(pos):
             self._reset_state(); self.state = "playing"
 
+    def _night_factor(self):
+        phase = (self.day_night_time % DAY_NIGHT_PERIOD) / DAY_NIGHT_PERIOD
+        return (math.sin(phase * math.pi * 2 - math.pi / 2) + 1) / 2
+
+    def _visibility_distance(self):
+        if self.weather == WEATHER_FOG:
+            return HEIGHT * 0.45
+        return HEIGHT
+
+    def _update_weather(self, dt):
+        self.weather_timer -= dt
+        if self.weather_timer <= 0:
+            if self.weather == WEATHER_CLEAR:
+                self.weather = random.choice([WEATHER_RAIN, WEATHER_FOG])
+                self.weather_timer = random.uniform(8.0, 15.0)
+            else:
+                self.weather = WEATHER_CLEAR
+                self.weather_timer = random.uniform(20.0, 40.0)
+            self._rain_pool.set_active(_RAIN_POOL_SIZE if self.weather == WEATHER_RAIN else 0)
+
+    def _update_police(self, dt, diff):
+        if self.level < POLICE_MIN_LEVEL:
+            return
+        self.police_timer -= dt
+        if self.police_timer <= 0:
+            lo, hi = POLICE_SPAWN_INTERVAL
+            self.police_timer = max(8.0, random.uniform(lo, hi) - self.level * 0.6)
+            lane = random.randint(0, 3)
+            self.police.append(PoliceCar(lane, diff.base_speed))
+            self._play_sound("siren")
+
+        player_rect = self.player.get_rect()
+        for car in self.police[:]:
+            finished = car.update(dt, self.player.x, self.player.vel_x, self.scroll_speed)
+            if finished:
+                self.police.remove(car)
+                if car.escaped and car.y > -car.HEIGHT:
+                    self.score += POLICE_ESCAPE_BONUS
+                    self._set_fb(f"ESCAPED! +{POLICE_ESCAPE_BONUS}", 1.0)
+                continue
+            if not self.invincibility_timer > 0 and not self.player.has_powerup(POWERUP_SHIELD):
+                if car.get_rect().colliderect(player_rect):
+                    self.police.remove(car)
+                    self._on_hit()
+                    return
+
     def _update(self, dt):
         if self.state != "playing":
             self.screen_shake = 0
@@ -955,11 +1198,15 @@ class Game:
 
         self.invincibility_timer = max(0.0, self.invincibility_timer - dt)
         self.level_flash_timer   = max(0.0, self.level_flash_timer - dt)
+        self.day_night_time     += dt
+        self._update_weather(dt)
 
-        self.player.update(dt, pg.key.get_pressed())
+        rain_penalty = 0.25 if self.weather == WEATHER_RAIN else 0.0
+        self.player.update(dt, pg.key.get_pressed(), rain_grip_penalty=rain_penalty)
 
         freeze_factor          = 0.3 if self.player.has_powerup(POWERUP_TIMEFREEZE) else 1.0
-        base_speed_factor      = self.player.get_speed_factor() * freeze_factor
+        rain_speed_factor      = 0.9 if self.weather == WEATHER_RAIN else 1.0
+        base_speed_factor      = self.player.get_speed_factor() * freeze_factor * rain_speed_factor
         self.road.scroll_speed = self.scroll_speed * base_speed_factor
         self.road.update(dt)
 
@@ -992,6 +1239,10 @@ class Game:
             if random.random() < 0.55:
                 kind = random.choice([POWERUP_SHIELD, POWERUP_MAGNET, POWERUP_TIMEFREEZE])
                 self.powerups.append(PowerUp(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.85, kind))
+
+        self._update_police(dt, diff)
+        if self.state != "playing":
+            return
 
         invincible   = self.invincibility_timer > 0
         player_rect  = self.player.get_rect()
@@ -1062,7 +1313,7 @@ class Game:
         if self.fb_timer > 0:
             self.fb_timer -= dt
 
-        if self.score >= (8 + self.level * 4) * self.level:
+        if self.score >= level_threshold(self.level):
             self.level         += 1
             self.scroll_speed   = min(self.scroll_speed + diff.speed_inc, diff.base_speed * 2.5)
             self.obs_interval   = max(0.6, self.obs_interval - 0.05)
@@ -1118,7 +1369,7 @@ class Game:
     def _on_coin(self, x, y):
         self.combo += 1
         self._recalc_multiplier()
-        gain          = int(8 * self.multiplier)
+        gain          = int(COIN_BASE_VALUE * self.multiplier)
         self.score   += gain
         self.fb_text  = f"+{gain}"
         self.fb_pos   = (x, y)
@@ -1161,13 +1412,34 @@ class Game:
             pg.display.flip()
             return
 
+        visibility = self._visibility_distance()
+        night      = self._night_factor()
+
         gameplay_surf = pg.Surface((WIDTH, HEIGHT))
         gameplay_surf.fill(BLACK)
         self.road.draw(gameplay_surf)
-        for obj in (*self.obs_cars, *self.obs_misc, *self.coins, *self.powerups):
+        for obj in (*self.obs_cars, *self.obs_misc):
+            obj.draw(gameplay_surf, visibility)
+        for obj in (*self.coins, *self.powerups):
             obj.draw(gameplay_surf)
-        self.player.draw(gameplay_surf, self.invincibility_timer > 0, pg.time.get_ticks())
+        for car in self.police:
+            car.draw(gameplay_surf, visibility)
+        self.player.draw(gameplay_surf, self.invincibility_timer > 0, pg.time.get_ticks(), headlights=night > 0.55)
         self._particle_pool.update_and_draw(gameplay_surf, dt)
+
+        if self.weather == WEATHER_RAIN:
+            self._rain_pool.update_and_draw(gameplay_surf, dt, 1.0)
+
+        if night > 0.05:
+            self._tint_surf.fill((0, 0, 0, 0))
+            tint_alpha = int(140 * night)
+            self._tint_surf.fill((10, 15, 45, tint_alpha))
+            gameplay_surf.blit(self._tint_surf, (0, 0))
+
+        if self.weather == WEATHER_FOG:
+            self._tint_surf.fill((0, 0, 0, 0))
+            self._tint_surf.fill((210, 210, 215, 90))
+            gameplay_surf.blit(self._tint_surf, (0, 0))
 
         if self.speed_blur_alpha > 4:
             alpha = int(self.speed_blur_alpha)
@@ -1178,10 +1450,11 @@ class Game:
 
         self.screen.blit(gameplay_surf, (shake_x, shake_y))
 
+        chased = len(self.police) > 0
         self.hud.draw(
             self.screen, self.score, self.level, self.speed_pct,
             self.selected_diff, self.multiplier, self.lives,
-            self.player.boost_timer, self.player,
+            self.player.boost_timer, self.player, self.weather, chased,
         )
         self.btn_pause.draw(self.screen, self.fonts[2])
         self._draw_feedback()
