@@ -856,14 +856,23 @@ class Game:
     def _load_high_score(self):
         try:
             with open("highscore.txt") as f:
-                return int(f.read().strip())
-        except Exception:
+                value = f.read().strip()
+            score = int(value)
+            if score < 0:
+                return 0
+            return score
+        except FileNotFoundError:
+            return 0
+        except (ValueError, OSError):
             return 0
 
     def _save_high_score(self):
         self._high_score = max(self.score, self._high_score)
-        with open("highscore.txt", "w") as f:
-            f.write(str(self._high_score))
+        try:
+            with open("highscore.txt", "w") as f:
+                f.write(str(self._high_score))
+        except OSError:
+            pass
 
     def _add_particles(self, x, y, count, color):
         for _ in range(count):
