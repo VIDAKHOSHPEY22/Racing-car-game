@@ -3,8 +3,10 @@
 ## Open Issues
 
 - [ ] Car upgrade system
+- [ ] Coins need to be randomized again
+- [ ] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
 
-## Completed — Original Base (TheM1ddleM1n)
+## Completed Issues — TheM1ddleM1n
 
 - [x] Speed system implemented
 - [x] Basic appearance and visuals added
@@ -20,8 +22,11 @@
 - [x] Added power-ups: shield, magnet, and time freeze
 - [x] Removed gameplay bottlenecks
 - [x] Fixed coin spawning — coins now spawn randomly across lanes
+- [x] Police cars that chase the player
+- [x] Day/night cycle
+- [x] Weather effects (rain, fog)
 
-## Completed — V5.3 (VIDAKHOSHPEY22)
+## Completed Issues - VIDAKHOSHPEY22
 
 - [x] Complete sound system with 5 audio effects using NumPy
 - [x] Particle effects for explosions, coin collection, and boost trails
@@ -37,26 +42,10 @@
 
 ## Planned
 
-- [ ] Police cars that chase the player and set roadblocks
-- [ ] Day/night cycle
-- [ ] Weather effects (rain, fog)
-- [ ] Alternative track environments
 - [ ] Web deployment
 - [ ] Improved multi-resolution support
-- [ ] New car designs
 
 ---
-
-## Get Involved
-
-HighSpeedRacer is a welcoming project for Python beginners and game development enthusiasts. Contributions of all kinds are appreciated.
-
-**Ways to contribute:**
-
-- Fix bugs — check the open Issues and submit a Pull Request
-- Improve documentation — clearer explanations and guides are always valued
-- Test on different screen resolutions and report any issues
-- Suggest new car skins, obstacle types, or gameplay features
 
 ## Contact
 
