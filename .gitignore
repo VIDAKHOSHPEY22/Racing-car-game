@@ -42,3 +42,6 @@ build/
 
 # saved highscore via the local user
 highscore.txt
+
+# saved player progress (coins, upgrades)
+progress.txt
