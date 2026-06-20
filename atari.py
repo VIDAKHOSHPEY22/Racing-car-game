@@ -99,6 +99,15 @@ COIN_BASE_VALUE = 5
 
 _RAIN_POOL_SIZE = 120
 
+UPGRADE_SPEED_MAX_LEVEL = 5
+UPGRADE_SPEED_STEP = 0.04
+UPGRADE_SPEED_COST_BASE = 80
+UPGRADE_SPEED_COST_STEP = 60
+
+UPGRADE_LIFE_MAX_LEVEL = 2
+UPGRADE_LIFE_COST_BASE = 250
+UPGRADE_LIFE_COST_STEP = 200
+
 
 def clamp(v, lo, hi):
     return lo if v < lo else (hi if v > hi else v)
@@ -118,6 +127,25 @@ def lerp_color(c0, c1, t):
 
 def level_threshold(level):
     return (20 + level * 6) * level
+
+
+def fade_alpha_by_y(y, height_val, visibility):
+    if visibility >= height_val:
+        return 255
+    fade_start = visibility - 80
+    if y <= fade_start:
+        return 0
+    if y >= visibility:
+        return 255
+    return int(255 * (y - fade_start) / (visibility - fade_start))
+
+
+def upgrade_speed_cost(level):
+    return UPGRADE_SPEED_COST_BASE + level * UPGRADE_SPEED_COST_STEP
+
+
+def upgrade_life_cost(level):
+    return UPGRADE_LIFE_COST_BASE + level * UPGRADE_LIFE_COST_STEP
 
 
 def _make_sound(wave):
@@ -188,7 +216,7 @@ def draw_arrow(surface, cx, cy, size, color, direction):
     if direction == "left":
         pts = [(cx + h, cy - h), (cx + h, cy + h), (cx - h, cy)]
     else:
-        pts = [(cx - h, cy - h), (cx - h, cy + h), (cx + h, cy)]
+        pts = [(cx - h, cy - h), (cx - h, cy + h), (cx, cy)]
     pg.draw.polygon(surface, color, pts)
 
 
@@ -351,23 +379,13 @@ class StaticObstacle:
         return self.y > HEIGHT
 
     def draw(self, surface, visibility):
-        alpha = self._fade_alpha(visibility)
+        alpha = fade_alpha_by_y(self.y, HEIGHT, visibility)
         if alpha >= 255:
             surface.blit(self.__class__._surf, (self.x, int(self.y)))
         elif alpha > 0:
             s = self.__class__._surf.copy()
             s.set_alpha(alpha)
             surface.blit(s, (self.x, int(self.y)))
-
-    def _fade_alpha(self, visibility):
-        if visibility >= HEIGHT:
-            return 255
-        fade_start = visibility - 80
-        if self.y <= fade_start:
-            return 0
-        if self.y >= visibility:
-            return 255
-        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -433,7 +451,7 @@ class OilSlick:
         return self.y > HEIGHT
 
     def draw(self, surface, visibility):
-        alpha = self._fade_alpha(visibility)
+        alpha = fade_alpha_by_y(self.y, HEIGHT, visibility)
         if alpha <= 0:
             return
         t  = self.angle
@@ -455,16 +473,6 @@ class OilSlick:
         OilSlick._surf_inner.fill((0, 0, 0, 0))
         pg.draw.ellipse(OilSlick._surf_inner, c1, OilSlick._surf_inner.get_rect())
         surface.blit(OilSlick._surf_inner, (self.x + 5, self.y + 3))
-
-    def _fade_alpha(self, visibility):
-        if visibility >= HEIGHT:
-            return 255
-        fade_start = visibility - 80
-        if self.y <= fade_start:
-            return 0
-        if self.y >= visibility:
-            return 255
-        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
@@ -566,23 +574,13 @@ class ObstacleCar:
         return self.y > HEIGHT
 
     def draw(self, surface, visibility=HEIGHT):
-        alpha = self._fade_alpha(visibility)
+        alpha = fade_alpha_by_y(self.y, HEIGHT, visibility)
         if alpha >= 255:
             surface.blit(self._surf, (int(self.x) - 4, int(self.y) - 4))
         elif alpha > 0:
             s = self._surf.copy()
             s.set_alpha(alpha)
             surface.blit(s, (int(self.x) - 4, int(self.y) - 4))
-
-    def _fade_alpha(self, visibility):
-        if visibility >= HEIGHT:
-            return 255
-        fade_start = visibility - 80
-        if self.y <= fade_start:
-            return 0
-        if self.y >= visibility:
-            return 255
-        return int(255 * (self.y - fade_start) / (visibility - fade_start))
 
     def get_rect(self):
         return pg.Rect(int(self.x) + 4, int(self.y) + 4, self.width - 8, self.height - 8)
@@ -742,12 +740,13 @@ class Player:
     HEIGHT = 88
     SPEED  = 400
 
-    def __init__(self, skin):
+    def __init__(self, skin, speed_level=0, extra_lives=0):
         self.x                = float(WIDTH // 2 - self.WIDTH // 2)
         self.y                = float(HEIGHT - self.HEIGHT - 30)
         self.color            = skin.color
         self.car_type         = skin.type
-        self.speed_bonus      = skin.speed_bonus
+        self.speed_bonus      = skin.speed_bonus + speed_level * UPGRADE_SPEED_STEP
+        self.extra_lives      = extra_lives
         self.vel_x            = 0.0
         self.tilt             = 0.0
         self.slide_vel        = 0.0
@@ -884,12 +883,7 @@ class HUD:
             self._text_cache[key] = font.render(text, True, color)
         return self._text_cache[key]
 
-    def invalidate(self, *keys):
-        for k in list(self._text_cache):
-            if k[1] in keys:
-                del self._text_cache[k]
-
-    def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives, boost_timer, player, weather, chased):
+    def draw(self, surface, score, level, speed_pct, difficulty, multiplier, lives, max_lives, boost_timer, player, weather, chased):
         self.surf.fill((0, 0, 0, 180))
         pg.draw.rect(self.surf, (255, 255, 255, 40), (0, 0, 240, 215), 3, border_radius=10)
         pulse = int(8 * abs(math.sin(pg.time.get_ticks() / 300)))
@@ -907,7 +901,7 @@ class HUD:
             pg.draw.rect(self.surf, ORANGE, (12, 115, boost_width, 6), border_radius=3)
             self._blit("BOOST!", (255, 105, 0), 12, 120, tiny=True)
         y_icons = 138
-        for i in range(3):
+        for i in range(max_lives):
             draw_heart(self.surf, 22 + i * 20, y_icons, 14, RED if i < lives else GRAY)
         if multiplier > 1.0:
             col  = YELLOW if multiplier >= 2.0 else (150, 220, 150)
@@ -946,21 +940,27 @@ class Button:
         self.text        = text
         self.base_color  = color or (45, 165, 75)
         self.hover_color = tuple(clamp(c + 40, 0, 255) for c in self.base_color)
+        self.enabled      = True
 
     def draw(self, surface, font):
-        col = self.hover_color if self.rect.collidepoint(pg.mouse.get_pos()) else self.base_color
-        if self.rect.collidepoint(pg.mouse.get_pos()):
+        hovered = self.rect.collidepoint(pg.mouse.get_pos())
+        if not self.enabled:
+            col = (60, 60, 60)
+        else:
+            col = self.hover_color if hovered else self.base_color
+        if hovered and self.enabled:
             glow = pg.Surface((self.rect.w + 10, self.rect.h + 10), pg.SRCALPHA)
             pg.draw.rect(glow, (*col, 80), (0, 0, self.rect.w + 10, self.rect.h + 10), border_radius=10)
             surface.blit(glow, (self.rect.x - 5, self.rect.y - 5))
         pg.draw.rect(surface, (0, 0, 0), (self.rect.x + 3, self.rect.y + 4, self.rect.w, self.rect.h), border_radius=8)
         pg.draw.rect(surface, col, self.rect, border_radius=8)
         pg.draw.rect(surface, WHITE, self.rect, 2, border_radius=8)
-        t = font.render(self.text, True, WHITE)
+        text_col = WHITE if self.enabled else (140, 140, 140)
+        t = font.render(self.text, True, text_col)
         surface.blit(t, t.get_rect(center=self.rect.center))
 
     def clicked(self, pos):
-        return self.rect.collidepoint(pos)
+        return self.enabled and self.rect.collidepoint(pos)
 
 
 class Game:
@@ -981,15 +981,22 @@ class Game:
         self._prerender_blur_lines()
         self.sounds         = _build_sounds()
         self._high_score    = self._load_high_score()
+        self._wallet, self._upgrades = self._load_progress()
         self._reset_state()
 
     def _init_ui(self):
         btn_w = min(200, max(160, WIDTH // 5))
-        self.btn_play    = Button(WIDTH // 2 - 100, 490, 200, 52, "START RACE")
-        self.btn_pause   = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
-        self.btn_restart = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "RESTART")
-        self.btn_menu    = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "MAIN MENU", (60, 80, 160))
-        self.btn_quit    = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "QUIT", (160, 50, 50))
+        self.btn_play     = Button(WIDTH // 2 - 100, 490, 200, 52, "START RACE")
+        self.btn_garage   = Button(WIDTH // 2 - 100, 552, 200, 36, "GARAGE", (60, 60, 110))
+        self.btn_pause    = Button(WIDTH - 115, 10, 100, 36, "PAUSE", (60, 60, 80))
+        self.btn_restart  = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "RESTART")
+        self.btn_menu     = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "MAIN MENU", (60, 80, 160))
+        self.btn_quit     = Button(WIDTH // 2 - btn_w // 2, 0, btn_w, 46, "QUIT", (160, 50, 50))
+        self.btn_pause_yes = Button(WIDTH // 2 - 95, 0, 85, 42, "YES", (160, 50, 50))
+        self.btn_pause_no  = Button(WIDTH // 2 + 10, 0, 85, 42, "NO", (45, 165, 75))
+        self.btn_garage_back = Button(WIDTH // 2 - btn_w // 2, 530, btn_w, 44, "BACK")
+        self.btn_upgrade_speed = Button(WIDTH // 2 - 170, 220, 340, 46, "")
+        self.btn_upgrade_life  = Button(WIDTH // 2 - 170, 290, 340, 46, "")
         self._diff_rects = {
             d: pg.Rect(WIDTH // 2 - 90, 148 + i * 46, 180, 36)
             for i, d in enumerate(["Easy", "Medium", "Hard"])
@@ -997,6 +1004,7 @@ class Game:
         self._arrow_left_rect  = pg.Rect(WIDTH // 2 - 145, 365, 40, 40)
         self._arrow_right_rect = pg.Rect(WIDTH // 2 + 105, 365, 40, 40)
         self._overlay_btn_w    = btn_w
+        self._confirm_pending  = False
 
     def _layout_overlay_buttons(self, by, include_quit=False):
         bw = self._overlay_btn_w
@@ -1018,7 +1026,10 @@ class Game:
     def _reset_state(self):
         diff                     = DIFFICULTY[self.selected_diff]
         skin                     = CAR_SKINS[self.selected_skin]
-        self.player              = Player(skin)
+        speed_level              = self._upgrades.get("speed", 0)
+        life_level               = self._upgrades.get("life", 0)
+        self.base_lives          = 3 + life_level
+        self.player              = Player(skin, speed_level=speed_level, extra_lives=life_level)
         self.road                = Road(diff.base_speed)
         self.obs_cars            = []
         self.obs_misc            = []
@@ -1027,12 +1038,14 @@ class Game:
         self.police              = []
         self._particle_pool._active.clear()
         self.score               = 0
+        self.run_coins           = 0
         self.level               = 1
         self.speed_pct           = 100
         self.scroll_speed        = diff.base_speed
         self.obs_timer           = 0.0
         self.obs_interval        = diff.obs_interval
         self.coin_timer          = 0.0
+        self.coin_lane_history   = []
         self.powerup_timer       = 0.0
         self.combo               = 0
         self.multiplier          = 1.0
@@ -1040,7 +1053,7 @@ class Game:
         self.fb_text             = ""
         self.fb_pos              = (WIDTH // 2, HEIGHT // 2)
         self.fb_timer            = 0.0
-        self.lives               = 3
+        self.lives               = self.base_lives
         self.invincibility_timer = 0.0
         self.level_flash_timer   = 0.0
         self.speed_blur_alpha    = 0.0
@@ -1071,6 +1084,28 @@ class Game:
         except OSError:
             pass
 
+    def _load_progress(self):
+        wallet, speed_level, life_level = 0, 0, 0
+        try:
+            with open("progress.txt") as f:
+                parts = f.read().strip().split(",")
+            if len(parts) >= 3:
+                wallet      = max(0, int(parts[0]))
+                speed_level = clamp(int(parts[1]), 0, UPGRADE_SPEED_MAX_LEVEL)
+                life_level  = clamp(int(parts[2]), 0, UPGRADE_LIFE_MAX_LEVEL)
+        except FileNotFoundError:
+            pass
+        except (ValueError, OSError):
+            pass
+        return wallet, {"speed": speed_level, "life": life_level}
+
+    def _save_progress(self):
+        try:
+            with open("progress.txt", "w") as f:
+                f.write(f"{self._wallet},{self._upgrades['speed']},{self._upgrades['life']}")
+        except OSError:
+            pass
+
     def _add_particles(self, x, y, count, color):
         for _ in range(count):
             vx       = random.uniform(-200, 200)
@@ -1094,22 +1129,22 @@ class Game:
                 pos = ev.pos
                 if self.state == "menu":
                     self._handle_menu_click(pos)
+                elif self.state == "garage":
+                    self._handle_garage_click(pos)
                 elif self.state == "playing":
                     if self.btn_pause.rect.collidepoint(pos):
                         self.state = "paused"
+                        self._confirm_pending = False
                 elif self.state == "paused":
-                    if self.btn_pause.rect.collidepoint(pos):
-                        self.state = "playing"
-                    elif self.btn_restart.rect.collidepoint(pos):
-                        self._reset_state(); self.state = "playing"
-                    elif self.btn_menu.rect.collidepoint(pos):
-                        self._save_high_score(); self._reset_state(); self.state = "menu"
+                    self._handle_pause_click(pos)
                 elif self.state == "gameover":
                     if self.btn_restart.rect.collidepoint(pos):
                         self._reset_state(); self.state = "playing"
                     elif self.btn_menu.rect.collidepoint(pos):
+                        self._wallet += self.run_coins; self._save_progress()
                         self._save_high_score(); self._reset_state(); self.state = "menu"
                     elif self.btn_quit.rect.collidepoint(pos):
+                        self._wallet += self.run_coins; self._save_progress()
                         self._save_high_score(); pg.quit(); sys.exit()
             if ev.type == pg.KEYDOWN:
                 if ev.key == pg.K_SPACE and self.state == "playing":
@@ -1124,11 +1159,18 @@ class Game:
                 if ev.key in (pg.K_p, pg.K_ESCAPE):
                     if self.state == "playing":
                         self.state = "paused"
+                        self._confirm_pending = False
                     elif self.state == "paused":
-                        self.state = "playing"
+                        if self._confirm_pending:
+                            self._confirm_pending = False
+                        else:
+                            self.state = "playing"
                     elif self.state == "gameover":
+                        self._wallet += self.run_coins; self._save_progress()
                         self._save_high_score(); self._reset_state(); self.state = "menu"
-                if ev.key == pg.K_r and self.state in ("gameover", "paused"):
+                    elif self.state == "garage":
+                        self.state = "menu"
+                if ev.key == pg.K_r and self.state == "gameover":
                     self._reset_state(); self.state = "playing"
 
     def _handle_menu_click(self, pos):
@@ -1141,6 +1183,50 @@ class Game:
             self.selected_skin = (self.selected_skin + 1) % len(CAR_SKINS)
         if self.btn_play.rect.collidepoint(pos):
             self._reset_state(); self.state = "playing"
+        if self.btn_garage.rect.collidepoint(pos):
+            self.state = "garage"
+
+    def _handle_garage_click(self, pos):
+        if self.btn_garage_back.rect.collidepoint(pos):
+            self.state = "menu"
+            return
+        speed_level = self._upgrades["speed"]
+        if speed_level < UPGRADE_SPEED_MAX_LEVEL and self.btn_upgrade_speed.rect.collidepoint(pos):
+            cost = upgrade_speed_cost(speed_level)
+            if self._wallet >= cost:
+                self._wallet -= cost
+                self._upgrades["speed"] += 1
+                self._save_progress()
+                self._play_sound("powerup")
+        life_level = self._upgrades["life"]
+        if life_level < UPGRADE_LIFE_MAX_LEVEL and self.btn_upgrade_life.rect.collidepoint(pos):
+            cost = upgrade_life_cost(life_level)
+            if self._wallet >= cost:
+                self._wallet -= cost
+                self._upgrades["life"] += 1
+                self._save_progress()
+                self._play_sound("powerup")
+
+    def _handle_pause_click(self, pos):
+        if not self._confirm_pending:
+            if self.btn_pause.rect.collidepoint(pos):
+                self.state = "playing"
+            elif self.btn_restart.rect.collidepoint(pos):
+                self._confirm_pending = True
+                self._confirm_action = "restart"
+            elif self.btn_menu.rect.collidepoint(pos):
+                self._confirm_pending = True
+                self._confirm_action = "menu"
+        else:
+            if self.btn_pause_yes.rect.collidepoint(pos):
+                self._wallet += self.run_coins; self._save_progress()
+                if self._confirm_action == "restart":
+                    self._reset_state(); self.state = "playing"
+                else:
+                    self._save_high_score(); self._reset_state(); self.state = "menu"
+                self._confirm_pending = False
+            elif self.btn_pause_no.rect.collidepoint(pos):
+                self._confirm_pending = False
 
     def _night_factor(self):
         phase = (self.day_night_time % DAY_NIGHT_PERIOD) / DAY_NIGHT_PERIOD
@@ -1225,13 +1311,7 @@ class Game:
         self.coin_timer += dt
         if self.coin_timer >= 1.2:
             self.coin_timer = 0.0
-            existing_xs = {c.x for c in self.coins if c.y < 0}
-            count = random.randint(2, 4) if random.random() < 0.3 else 1
-            available = [lc for lc in LANE_CENTERS if lc not in existing_xs]
-            if not available:
-                available = LANE_CENTERS
-            for lc in random.sample(available, min(count, len(available))):
-                self.coins.append(Coin(lc, self.scroll_speed * 0.95))
+            self._spawn_coins()
 
         self.powerup_timer += dt
         if self.powerup_timer >= 8.0:
@@ -1324,6 +1404,21 @@ class Game:
             for _ in range(5):
                 self.coins.append(Coin(LANE_CENTERS[random.randint(0, 3)], self.scroll_speed * 0.9))
 
+    def _spawn_coins(self):
+        existing_xs = {c.x for c in self.coins if c.y < 0}
+        available    = [lc for lc in LANE_CENTERS if lc not in existing_xs]
+        if not available:
+            available = list(LANE_CENTERS)
+        random.shuffle(available)
+        count = random.randint(2, 4) if random.random() < 0.3 else 1
+        count = min(count, len(available))
+        chosen = available[:count]
+        for lc in chosen:
+            self.coins.append(Coin(lc, self.scroll_speed * 0.95))
+        self.coin_lane_history.extend(chosen)
+        if len(self.coin_lane_history) > 12:
+            self.coin_lane_history = self.coin_lane_history[-12:]
+
     def _set_fb(self, text, duration):
         self.fb_text  = text
         self.fb_pos   = (int(self.player.x + Player.WIDTH // 2), int(self.player.y))
@@ -1371,6 +1466,7 @@ class Game:
         self._recalc_multiplier()
         gain          = int(COIN_BASE_VALUE * self.multiplier)
         self.score   += gain
+        self.run_coins += gain
         self.fb_text  = f"+{gain}"
         self.fb_pos   = (x, y)
         self.fb_timer = 0.7
@@ -1396,6 +1492,8 @@ class Game:
     def _trigger_gameover(self):
         self.state        = "gameover"
         self.screen_shake = 0
+        self._wallet      += self.run_coins
+        self._save_progress()
         self._save_high_score()
 
     def _draw(self, dt):
@@ -1409,6 +1507,11 @@ class Game:
 
         if self.state == "menu":
             self._draw_menu()
+            pg.display.flip()
+            return
+
+        if self.state == "garage":
+            self._draw_garage()
             pg.display.flip()
             return
 
@@ -1453,7 +1556,7 @@ class Game:
         chased = len(self.police) > 0
         self.hud.draw(
             self.screen, self.score, self.level, self.speed_pct,
-            self.selected_diff, self.multiplier, self.lives,
+            self.selected_diff, self.multiplier, self.lives, self.base_lives,
             self.player.boost_timer, self.player, self.weather, chased,
         )
         self.btn_pause.draw(self.screen, self.fonts[2])
@@ -1547,15 +1650,16 @@ class Game:
             pg.draw.rect(self.screen, WHITE, rect, 1, border_radius=6)
             draw_arrow(self.screen, rect.centerx, rect.centery, 18, WHITE, direction)
 
-        bonus_val  = skin.speed_bonus
+        bonus_val  = skin.speed_bonus + self._upgrades["speed"] * UPGRADE_SPEED_STEP
         bonus_text = f_tiny.render(
             f"{skin.name} - {'+' if bonus_val > 1 else ''}{int((bonus_val - 1) * 100)}% SPEED",
             True, GREEN if bonus_val >= 1 else ORANGE,
         )
         self.screen.blit(bonus_text, (WIDTH // 2 - bonus_text.get_width() // 2, 445))
-        hs_text = f"HIGH SCORE: {self._high_score}"
+        hs_text = f"HIGH SCORE: {self._high_score}    COINS: {self._wallet}"
         self.screen.blit(f_tiny.render(hs_text, True, YELLOW), (WIDTH // 2 - f_tiny.size(hs_text)[0] // 2, 465))
         self.btn_play.draw(self.screen, f_small)
+        self.btn_garage.draw(self.screen, f_tiny)
 
         hint    = f_tiny.render("   Move  |  SPACE to boost  |  P - Pause  |  R - Restart", True, GRAY)
         text_x  = WIDTH // 2 - hint.get_width() // 2
@@ -1570,6 +1674,50 @@ class Game:
         self.screen.blit(hint, (text_x, 555))
         draw_arrow(self.screen, al_x, 560, 14, GRAY, "left")
         draw_arrow(self.screen, ar_x, 560, 14, GRAY, "right")
+
+    def _draw_garage(self):
+        f_main, f_small, f_tiny = self.fonts
+        elapsed = pg.time.get_ticks() / 1000
+        for y in range(HEIGHT):
+            shade = clamp(10 + int(25 * math.sin(y / 30 + elapsed)), 0, 255)
+            pg.draw.line(self.screen, (shade, shade, min(shade + 10, 255)), (0, y), (WIDTH, y))
+
+        title = f_main.render("GARAGE", True, YELLOW)
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 35))
+        coin_text = f_small.render(f"COINS: {self._wallet}", True, YELLOW)
+        self.screen.blit(coin_text, (WIDTH // 2 - coin_text.get_width() // 2, 95))
+
+        bg = pg.Surface((460, 380), pg.SRCALPHA)
+        bg.fill((0, 0, 0, 190))
+        pg.draw.rect(bg, (255, 255, 255, 40), (0, 0, 460, 380), 2, border_radius=15)
+        self.screen.blit(bg, (WIDTH // 2 - 230, 140))
+
+        speed_level = self._upgrades["speed"]
+        if speed_level >= UPGRADE_SPEED_MAX_LEVEL:
+            self.btn_upgrade_speed.text    = "TOP SPEED - MAXED"
+            self.btn_upgrade_speed.enabled = False
+        else:
+            cost = upgrade_speed_cost(speed_level)
+            self.btn_upgrade_speed.text    = f"TOP SPEED  Lv{speed_level} -> Lv{speed_level + 1}   ({cost} coins)"
+            self.btn_upgrade_speed.enabled = self._wallet >= cost
+        self.btn_upgrade_speed.draw(self.screen, f_tiny)
+
+        life_level = self._upgrades["life"]
+        if life_level >= UPGRADE_LIFE_MAX_LEVEL:
+            self.btn_upgrade_life.text    = "EXTRA LIFE - MAXED"
+            self.btn_upgrade_life.enabled = False
+        else:
+            cost = upgrade_life_cost(life_level)
+            self.btn_upgrade_life.text    = f"EXTRA LIFE  Lv{life_level} -> Lv{life_level + 1}   ({cost} coins)"
+            self.btn_upgrade_life.enabled = self._wallet >= cost
+        self.btn_upgrade_life.draw(self.screen, f_tiny)
+
+        info1 = f_tiny.render(f"Permanently +{int(UPGRADE_SPEED_STEP * 100)}% top speed per level", True, GRAY)
+        self.screen.blit(info1, (WIDTH // 2 - info1.get_width() // 2, 270))
+        info2 = f_tiny.render("Permanently +1 starting life per level", True, GRAY)
+        self.screen.blit(info2, (WIDTH // 2 - info2.get_width() // 2, 340))
+
+        self.btn_garage_back.draw(self.screen, f_small)
 
     def _draw_overlay(self, title_text, title_color, box_h, box_border_color):
         overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
@@ -1596,15 +1744,22 @@ class Game:
 
     def _draw_pause(self):
         f_small, f_tiny = self.fonts[1], self.fonts[2]
-        by = self._draw_overlay("PAUSED", YELLOW, 260, (255, 255, 255, 60))
-        self._draw_overlay_stats(by)
-        cx = WIDTH // 2
-        for text, dy in [("P / ESC to resume", 125), ("R to restart", 143)]:
-            t = f_tiny.render(text, True, GRAY)
-            self.screen.blit(t, (cx - t.get_width() // 2, by + dy))
-        self._layout_overlay_buttons(by)
-        self.btn_restart.draw(self.screen, f_small)
-        self.btn_menu.draw(self.screen, f_small)
+        if not self._confirm_pending:
+            by = self._draw_overlay("PAUSED", YELLOW, 180, (255, 255, 255, 60))
+            self._layout_overlay_buttons(by)
+            self.btn_restart.text = "RESTART"
+            self.btn_menu.text    = "MAIN MENU"
+            self.btn_restart.draw(self.screen, f_small)
+            self.btn_menu.draw(self.screen, f_small)
+            hint = f_tiny.render("P / ESC to resume", True, GRAY)
+            self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 120))
+        else:
+            by = self._draw_overlay("ARE YOU SURE?", YELLOW, 150, (255, 255, 255, 60))
+            cx = WIDTH // 2
+            self.btn_pause_yes.rect = pg.Rect(cx - 95, by + 90, 85, 42)
+            self.btn_pause_no.rect  = pg.Rect(cx + 10, by + 90, 85, 42)
+            self.btn_pause_yes.draw(self.screen, f_small)
+            self.btn_pause_no.draw(self.screen, f_small)
 
     def _draw_gameover(self):
         f_small, f_tiny = self.fonts[1], self.fonts[2]
@@ -1616,7 +1771,11 @@ class Game:
         else:
             hs_surf = f_tiny.render(f"BEST: {self._high_score}", True, GRAY)
         self.screen.blit(hs_surf, (cx - hs_surf.get_width() // 2, by + 118))
+        coins_surf = f_tiny.render(f"COINS EARNED: {self.run_coins}", True, YELLOW)
+        self.screen.blit(coins_surf, (cx - coins_surf.get_width() // 2, by + 140))
         self._layout_overlay_buttons(by, include_quit=True)
+        self.btn_restart.text = "RESTART"
+        self.btn_menu.text    = "MAIN MENU"
         self.btn_restart.draw(self.screen, f_small)
         self.btn_menu.draw(self.screen, f_small)
         self.btn_quit.draw(self.screen, f_small)
