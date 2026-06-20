@@ -2,9 +2,9 @@
 
 ## Open Issues
 
-- [ ] Car upgrade system
-- [ ] Coins need to be randomized again
-- [ ] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
+- [x] Car upgrade system
+- [x] Coins need to be randomized again
+- [x] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
 
 ## Completed Issues — TheM1ddleM1n
 
@@ -22,9 +22,12 @@
 - [x] Added power-ups: shield, magnet, and time freeze
 - [x] Removed gameplay bottlenecks
 - [x] Fixed coin spawning — coins now spawn randomly across lanes
-- [x] Police cars that chase the player
+- [x] Police car that chases the player
 - [x] Day/night cycle
 - [x] Weather effects (rain, fog)
+- [x] Car upgrade system
+- [x] Coins need to be randomized again
+- [x] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
 
 ## Completed Issues - VIDAKHOSHPEY22
 
