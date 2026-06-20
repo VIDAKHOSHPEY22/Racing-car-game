@@ -2,10 +2,6 @@
 
 ## Open Issues
 
-- [x] Car upgrade system
-- [x] Coins need to be randomized again
-- [x] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
-
 ## Completed Issues — TheM1ddleM1n
 
 - [x] Speed system implemented
