@@ -56,17 +56,14 @@ python atari.py
 
 ---
 
-## What's New in V5.3
+## What's New in V5.5
 
-- Complete sound system with 5 sound effects using numpy
-- Particle effects for explosions, coins, and boost trails
-- Boost system with SPACE key
-- Screen shake on collisions and speed bumps
-- Responsive UI for all screen resolutions
-- Speed bonus display in car selection menu
-- Fixed arrow keys with custom drawn arrows
-- Fixed car positioning in menu
-- Road lines now scroll downward
+- Added Dependabot for pip and Github Actions
+- Added Car Upgrade System
+- Added Police Car to chase player
+- Added weather conditions
+- Removed Bottlenecks/Useless code
+- Simplified pause menu
 
 ---
 
