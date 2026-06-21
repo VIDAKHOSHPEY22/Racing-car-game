@@ -41,7 +41,7 @@ python atari.py
 | Difficulty Levels | Easy, Medium, and Hard modes |
 | High Score | Automatically saves your best score |
 | Responsive UI | Works on any screen resolution |
-| Pause / Resume | Press P or ESC anytime |
+| Pause / Resume | Press `P` anytime |
 
 ---
 
@@ -51,7 +51,7 @@ python atari.py
 |-----|--------|
 | ← → | Steer left / right |
 | SPACE | Activate boost (50 points) |
-| P / ESC | Pause / Resume |
+| P | Pause / Resume |
 | R | Restart game |
 
 ---
@@ -64,6 +64,7 @@ python atari.py
 - Added weather conditions
 - Removed Bottlenecks/Useless code
 - Simplified pause menu
+- Removed `esc` key for pause/resume menu
 
 ---
 
