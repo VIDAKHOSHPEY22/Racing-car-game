@@ -41,7 +41,7 @@ python atari.py
 | Difficulty Levels | Easy, Medium, and Hard modes |
 | High Score | Automatically saves your best score |
 | Responsive UI | Works on any screen resolution |
-| Pause / Resume | Press P or ESC anytime |
+| Pause / Resume | Press P anytime |
 
 ---
 
@@ -51,60 +51,58 @@ python atari.py
 |-----|--------|
 | ← → | Steer left / right |
 | SPACE | Activate boost (50 points) |
-| P / ESC | Pause / Resume |
+| P | Pause / Resume |
 | R | Restart game |
 
 ---
 
-## What's New in V5.5
+## What's New in V5.6
 
-- Added Dependabot for pip and Github Actions
-- Added Car Upgrade System
-- Added Police Car to chase player
+- Removed the day/night cycle, which had no effect on gameplay and only added rendering overhead
+- Simplified pause controls to a single key (P); ESC no longer pauses or backs out of menus
+- Fixed police escape bonus so it is awarded consistently on a successful escape
+- Corrected the HUD speed bar to reflect true maximum scroll speed at higher levels
+- Streamlined power-up icon rendering for a small performance improvement
+- Updated `Checklist.md` to track these changes
+
+## Previously in V5.5
+
+- Added Dependabot for pip and GitHub Actions
+- Added car upgrade system
+- Added police car to chase player
 - Added weather conditions
-- Removed Bottlenecks/Useless code
+- Removed bottlenecks and unused code
 - Simplified pause menu
 
 ---
 
 ## Gameplay Preview
 
-### New
-
 <p align="center">
-  <img src="screenshots/new-preview.gif" width="90%" alt="New Gameplay">
+  <img src="screenshots/new-preview.gif" width="90%" alt="Gameplay Preview">
 </p>
 
 ---
 
-## New Screenshots
+## Screenshots
 
 ### Menu
 
 <p align="center">
-  <img src="screenshots/new-menu.png" width="90%" alt="New Menu">
+  <img src="screenshots/new-menu.png" width="90%" alt="Menu">
 </p>
 
 ### Gameplay
 
 <p align="center">
-  <img src="screenshots/new-game.png" width="90%" alt="New Gameplay">
+  <img src="screenshots/new-game.png" width="90%" alt="Gameplay">
 </p>
 
 ### Game Over
 
 <p align="center">
-  <img src="screenshots/new-end.png" width="90%" alt="New Game Over">
+  <img src="screenshots/new-end.png" width="90%" alt="Game Over">
 </p>
-
-### What Changed?
-
-- Cleaner menu layout with improved typography
-- Glow effects, better shadows, and polished colors
-- Improved car preview box with speed bonus display
-- Custom drawn arrows replacing Unicode characters
-- Better HUD layout with boost indicator and combo display
-- Enhanced visual effects and particle system
 
 ---
 
@@ -114,7 +112,7 @@ python atari.py
 
 - Python 3.13
 - pygame
-- numpy (totally optional sound effects)
+- numpy (optional, used for sound effects)
 
 ### pip installation
 
@@ -125,27 +123,6 @@ pip install pygame
 For sound effects:
 ```bash
 pip install pygame numpy
-```
-
----
-
-## Project Structure
-
-```
-Racing-car-game/          # Main Root
-├── atari.py              # Main game file to run
-├── requirements.txt      # Dependencies
-├── LICENSE               # MIT License
-├── screenshots/          # Folder structure
-│   ├── new-menu.png      # New menu screen
-│   ├── new-game.png      # New gameplay screen
-│   ├── new-end.png       # New game over screen
-│   ├── new-preview.gif   # New gameplay preview
-│   ├── start.jpg         # Old menu (before)
-│   ├── game.jpg          # Old gameplay (before)
-│   ├── end.jpg           # Old game over (before)
-│   └── preview.gif       # Old preview (before)
-└── README.md             # You are reading this now! :D
 ```
 
 ---
@@ -215,7 +192,7 @@ pyinstaller --onefile --windowed atari.py
 
 ## Contact
 
-📧 **vidatwin18@gmail.com**
+Email: vidatwin18@gmail.com
 
 ---
 
