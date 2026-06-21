@@ -30,6 +30,12 @@
 - [x] Pre-rendered power-up icon labels at creation instead of caching by label at draw time
 - [x] Fixed police escape bonus condition so it always awards on a successful escape
 - [x] Raised HUD speed bar cap to reflect true max scroll speed (was visually maxing out early)
+- [x] Removed police car chase mechanic to simplify core gameplay loop
+- [x] Removed Magnet power-up, keeping Shield and Time Freeze
+- [x] Removed screen shake effect on collisions and speed bump events
+- [x] Removed fog weather and the Speed Bump hazard
+- [x] Reduced particle pool size from 300 to 150 to match trimmed effect set
+- [x] Corrected README "Responsive UI" claim, since window size is fixed at 800x600
 
 ## Completed — VIDAKHOSHPEY22
 
@@ -48,7 +54,7 @@
 ## Known Limitations
 
 - Garage and Game Over screens are mouse-only for navigation; no keyboard shortcut exists to back out of them aside from `R` (restart) on Game Over.
-- Magnet power-up's pull radius is close to the coin pickup radius, so its effect on gameplay is subtle rather than dramatic.
+- Window size is fixed at 800x600 and does not currently support live resizing.
 
 ## Contact
 
