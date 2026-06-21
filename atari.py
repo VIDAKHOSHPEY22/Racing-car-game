@@ -85,7 +85,6 @@ _PARTICLE_POOL_SIZE = 300
 
 _ROAD_BASE_SURF = None
 
-DAY_NIGHT_PERIOD = 60.0
 WEATHER_CLEAR = "clear"
 WEATHER_RAIN  = "rain"
 WEATHER_FOG   = "fog"
@@ -514,7 +513,6 @@ class Coin:
 
 class PowerUp:
     RADIUS = 14
-    _label_cache = {}
 
     def __init__(self, x, speed, kind):
         self.x     = x
@@ -522,6 +520,14 @@ class PowerUp:
         self.speed = speed
         self.kind  = kind
         self.angle = 0.0
+        col, label, _ = POWERUP_META[kind]
+        if not hasattr(PowerUp, "_labels"):
+            f = pg.font.Font(None, 16)
+            PowerUp._labels = {
+                k: f.render(meta[1][0], True, WHITE)
+                for k, meta in POWERUP_META.items()
+            }
+        self._label_surf = PowerUp._labels[kind]
 
     def update(self, dt):
         self.y     += self.speed * dt
@@ -537,11 +543,7 @@ class PowerUp:
         surface.blit(glow, (int(self.x) - r - 4, int(self.y) - r - 4))
         pg.draw.circle(surface, col, (int(self.x), int(self.y)), r)
         pg.draw.circle(surface, WHITE, (int(self.x), int(self.y)), r, 2)
-        if label not in PowerUp._label_cache:
-            f = pg.font.Font(None, 16)
-            PowerUp._label_cache[label] = f.render(label[0], True, WHITE)
-        surf = PowerUp._label_cache[label]
-        surface.blit(surf, surf.get_rect(center=(int(self.x), int(self.y))))
+        surface.blit(self._label_surf, self._label_surf.get_rect(center=(int(self.x), int(self.y))))
 
     def get_rect(self):
         return pg.Rect(self.x - self.RADIUS, self.y - self.RADIUS, self.RADIUS * 2, self.RADIUS * 2)
@@ -836,16 +838,11 @@ class Player:
             factor *= self.boost_multiplier
         return factor
 
-    def draw(self, surface, invincible, ticks, headlights=False):
+    def draw(self, surface, invincible, ticks):
         if invincible and not self.has_powerup(POWERUP_SHIELD) and (ticks // 60) % 2 == 0:
             return
         cx = int(self.x + self.WIDTH // 2)
         cy = int(self.y + self.HEIGHT // 2)
-        if headlights:
-            for lx in (self.x + 6, self.x + self.WIDTH - 18):
-                cone = pg.Surface((70, 140), pg.SRCALPHA)
-                pg.draw.polygon(cone, (255, 250, 200, 50), [(35, 10), (0, 140), (70, 140)])
-                surface.blit(cone, (int(lx) - 35 + 6, int(self.y) - 130))
         if self.has_powerup(POWERUP_SHIELD):
             glow = pg.Surface((self.WIDTH + 28, self.HEIGHT + 28), pg.SRCALPHA)
             pg.draw.ellipse(glow, (80, 180, 255, 120), glow.get_rect())
@@ -892,7 +889,7 @@ class HUD:
         self._blit(f"LEVEL: {level}", CYAN, 12, 40)
         self._blit(f"SPEED: {speed_pct}%", GREEN, 12, 65)
         bar_width, bar_height = 100, 8
-        fill = int(bar_width * min(1.0, speed_pct / 150))
+        fill = int(bar_width * min(1.0, speed_pct / 250))
         pg.draw.rect(self.surf, (50, 50, 50), (12, 88, bar_width, bar_height), border_radius=4)
         pg.draw.rect(self.surf, GREEN, (12, 88, fill, bar_height), border_radius=4)
         self._blit(f"MODE: {difficulty}", YELLOW, 12, 100, tiny=True)
@@ -1005,6 +1002,7 @@ class Game:
         self._arrow_right_rect = pg.Rect(WIDTH // 2 + 105, 365, 40, 40)
         self._overlay_btn_w    = btn_w
         self._confirm_pending  = False
+        self._confirm_action   = None
 
     def _layout_overlay_buttons(self, by, include_quit=False):
         bw = self._overlay_btn_w
@@ -1058,7 +1056,6 @@ class Game:
         self.level_flash_timer   = 0.0
         self.speed_blur_alpha    = 0.0
         self.screen_shake        = 0.0
-        self.day_night_time      = 0.0
         self.weather             = WEATHER_CLEAR
         self.weather_timer       = random.uniform(20.0, 40.0)
         self.police_timer        = random.uniform(*POLICE_SPAWN_INTERVAL)
@@ -1156,7 +1153,7 @@ class Game:
                         self._play_sound("boost")
                     else:
                         self._set_fb("NEED 50 PTS!", 0.7)
-                if ev.key in (pg.K_p, pg.K_ESCAPE):
+                if ev.key == pg.K_p:
                     if self.state == "playing":
                         self.state = "paused"
                         self._confirm_pending = False
@@ -1165,11 +1162,6 @@ class Game:
                             self._confirm_pending = False
                         else:
                             self.state = "playing"
-                    elif self.state == "gameover":
-                        self._wallet += self.run_coins; self._save_progress()
-                        self._save_high_score(); self._reset_state(); self.state = "menu"
-                    elif self.state == "garage":
-                        self.state = "menu"
                 if ev.key == pg.K_r and self.state == "gameover":
                     self._reset_state(); self.state = "playing"
 
@@ -1228,10 +1220,6 @@ class Game:
             elif self.btn_pause_no.rect.collidepoint(pos):
                 self._confirm_pending = False
 
-    def _night_factor(self):
-        phase = (self.day_night_time % DAY_NIGHT_PERIOD) / DAY_NIGHT_PERIOD
-        return (math.sin(phase * math.pi * 2 - math.pi / 2) + 1) / 2
-
     def _visibility_distance(self):
         if self.weather == WEATHER_FOG:
             return HEIGHT * 0.45
@@ -1264,7 +1252,7 @@ class Game:
             finished = car.update(dt, self.player.x, self.player.vel_x, self.scroll_speed)
             if finished:
                 self.police.remove(car)
-                if car.escaped and car.y > -car.HEIGHT:
+                if car.escaped:
                     self.score += POLICE_ESCAPE_BONUS
                     self._set_fb(f"ESCAPED! +{POLICE_ESCAPE_BONUS}", 1.0)
                 continue
@@ -1284,7 +1272,6 @@ class Game:
 
         self.invincibility_timer = max(0.0, self.invincibility_timer - dt)
         self.level_flash_timer   = max(0.0, self.level_flash_timer - dt)
-        self.day_night_time     += dt
         self._update_weather(dt)
 
         rain_penalty = 0.25 if self.weather == WEATHER_RAIN else 0.0
@@ -1516,7 +1503,6 @@ class Game:
             return
 
         visibility = self._visibility_distance()
-        night      = self._night_factor()
 
         gameplay_surf = pg.Surface((WIDTH, HEIGHT))
         gameplay_surf.fill(BLACK)
@@ -1527,17 +1513,11 @@ class Game:
             obj.draw(gameplay_surf)
         for car in self.police:
             car.draw(gameplay_surf, visibility)
-        self.player.draw(gameplay_surf, self.invincibility_timer > 0, pg.time.get_ticks(), headlights=night > 0.55)
+        self.player.draw(gameplay_surf, self.invincibility_timer > 0, pg.time.get_ticks())
         self._particle_pool.update_and_draw(gameplay_surf, dt)
 
         if self.weather == WEATHER_RAIN:
             self._rain_pool.update_and_draw(gameplay_surf, dt, 1.0)
-
-        if night > 0.05:
-            self._tint_surf.fill((0, 0, 0, 0))
-            tint_alpha = int(140 * night)
-            self._tint_surf.fill((10, 15, 45, tint_alpha))
-            gameplay_surf.blit(self._tint_surf, (0, 0))
 
         if self.weather == WEATHER_FOG:
             self._tint_surf.fill((0, 0, 0, 0))
@@ -1751,7 +1731,7 @@ class Game:
             self.btn_menu.text    = "MAIN MENU"
             self.btn_restart.draw(self.screen, f_small)
             self.btn_menu.draw(self.screen, f_small)
-            hint = f_tiny.render("P / ESC to resume", True, GRAY)
+            hint = f_tiny.render("P to resume", True, GRAY)
             self.screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, by + 120))
         else:
             by = self._draw_overlay("ARE YOU SURE?", YELLOW, 150, (255, 255, 255, 60))
@@ -1779,7 +1759,7 @@ class Game:
         self.btn_restart.draw(self.screen, f_small)
         self.btn_menu.draw(self.screen, f_small)
         self.btn_quit.draw(self.screen, f_small)
-        hint = f_tiny.render("R restart  |  ESC menu", True, GRAY)
+        hint = f_tiny.render("R restart", True, GRAY)
         self.screen.blit(hint, (cx - hint.get_width() // 2, by + 308))
 
 
