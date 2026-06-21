@@ -42,7 +42,6 @@
 ## Planned
 
 - [ ] Web deployment
-- [ ] Improved multi-resolution support
 
 ---
 
