@@ -1,8 +1,10 @@
-# `atari.py` Development Checklist
+# atari.py Development Checklist
 
 ## Open Issues
 
-## Completed Issues — TheM1ddleM1n
+- [ ] Web deployment
+
+## Completed — TheM1ddleM1n
 
 - [x] Speed system implemented
 - [x] Basic appearance and visuals added
@@ -17,15 +19,19 @@
 - [x] Added additional car skins
 - [x] Added power-ups: shield, magnet, and time freeze
 - [x] Removed gameplay bottlenecks
-- [x] Fixed coin spawning — coins now spawn randomly across lanes
-- [x] Police car that chases the player
-- [x] Day/night cycle
-- [x] Weather effects (rain, fog)
-- [x] Car upgrade system
-- [x] Coins need to be randomized again
-- [x] Pause menu needs to be simplified with just the text Paused and Return to Main Menu Button and ask Are you sure? (Yes/No) 
+- [x] Fixed coin spawning so coins now spawn randomly across lanes
+- [x] Added police car that chases the player
+- [x] Added weather effects (rain, fog)
+- [x] Added car upgrade system
+- [x] Re-randomized coin spawn distribution
+- [x] Simplified pause menu (Paused / Return to Main Menu, with Yes/No confirmation)
+- [x] Removed day/night cycle (cosmetic-only, no gameplay effect)
+- [x] Simplified pause controls to a single key (P); removed ESC as a pause/menu shortcut
+- [x] Pre-rendered power-up icon labels at creation instead of caching by label at draw time
+- [x] Fixed police escape bonus condition so it always awards on a successful escape
+- [x] Raised HUD speed bar cap to reflect true max scroll speed (was visually maxing out early)
 
-## Completed Issues - VIDAKHOSHPEY22
+## Completed — VIDAKHOSHPEY22
 
 - [x] Complete sound system with 5 audio effects using NumPy
 - [x] Particle effects for explosions, coin collection, and boost trails
@@ -39,18 +45,15 @@
 - [x] Boost glow effect rendered around the player car
 - [x] Random free boost reward on coin collection
 
-## Planned
+## Known Limitations
 
-- [ ] Web deployment
-
----
+- Garage and Game Over screens are mouse-only for navigation; no keyboard shortcut exists to back out of them aside from `R` (restart) on Game Over.
+- Magnet power-up's pull radius is close to the coin pickup radius, so its effect on gameplay is subtle rather than dramatic.
 
 ## Contact
 
 - Email: vidatwin18@gmail.com
 - GitHub: @TheM1ddleM1n or @VIDAKHOSHPEY22
-
----
 
 ## Contributors
 
