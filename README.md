@@ -35,12 +35,13 @@ python atari.py
 | Car Skins | 8 different skins with unique speed bonuses |
 | Boost System | Press SPACE to activate speed boost (costs 50 points) |
 | Combo Multiplier | Chain obstacles and coins for multipliers up to x4 |
-| Sound Effects | Complete audio system with 5 different sounds |
+| Sound Effects | Procedurally generated audio for coins, boost, hits, and more |
 | Particle Effects | Explosions, sparks, and boost trail effects |
-| Screen Shake | Dynamic camera shake on collisions |
+| Power-Ups | Shield and Time Freeze pickups |
+| Weather | Rain that affects grip and scroll speed |
 | Difficulty Levels | Easy, Medium, and Hard modes |
 | High Score | Automatically saves your best score |
-| Responsive UI | Works on any screen resolution |
+| Garage Upgrades | Spend coins on permanent speed and life upgrades |
 | Pause / Resume | Press P anytime |
 
 ---
@@ -58,21 +59,21 @@ python atari.py
 
 ## What's New in V5.6
 
+- Removed the police chase mechanic to keep the core dodge-and-collect loop tighter
+- Removed the Magnet power-up; Shield and Time Freeze remain
+- Removed screen shake on collisions for a calmer, steadier camera
+- Removed fog weather and the Speed Bump hazard to simplify the hazard set down to Cone, Barrier, and Oil Slick
+- Reduced the particle pool size to match the trimmed effect set
+- Corrected the README to no longer claim dynamic responsive resizing, since the window size is currently fixed
+- Updated `Checklist.md` to track these changes
+
+## Previously in V5.5
+
 - Removed the day/night cycle, which had no effect on gameplay and only added rendering overhead
 - Simplified pause controls to a single key (P); ESC no longer pauses or backs out of menus
 - Fixed police escape bonus so it is awarded consistently on a successful escape
 - Corrected the HUD speed bar to reflect true maximum scroll speed at higher levels
 - Streamlined power-up icon rendering for a small performance improvement
-- Updated `Checklist.md` to track these changes
-
-## Previously in V5.5
-
-- Added Dependabot for pip and GitHub Actions
-- Added car upgrade system
-- Added police car to chase player
-- Added weather conditions
-- Removed bottlenecks and unused code
-- Simplified pause menu
 
 ---
 
