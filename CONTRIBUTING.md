@@ -20,7 +20,7 @@ This project was started by **VIDAKHOSHPEY22** as a personal learning experience
 - New features and enhancements
 - Documentation improvements
 - Translations to other languages
-- Testing across different operating systems and screen resolutions
+- Testing across different operating systems
 
 ## Code Style
 
