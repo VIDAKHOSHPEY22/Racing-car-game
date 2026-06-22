@@ -7,7 +7,7 @@
 
 <h1 align="center">HIGH SPEED RACER</h1>
 
-<h3 align="center">A fast-paced 2D endless racing game built with Python and Pygame</h3>
+<h3 align="center">A fast-paced 2D endless racing game built with Python</h3>
 
 ---
 
