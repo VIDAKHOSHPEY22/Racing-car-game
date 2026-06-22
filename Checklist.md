@@ -2,7 +2,7 @@
 
 ## Open Issues
 
-- [ ] Web deployment
+- [ ] Web deployment (soon)
 
 ## Completed — TheM1ddleM1n
 
