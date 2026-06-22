@@ -2,7 +2,6 @@ import pygame as pg
 import sys
 import random
 import math
-import os # is this needed?! it does not quote anything tho..
 from collections import namedtuple
 from bisect import bisect_left
 
