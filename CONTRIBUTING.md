@@ -1,6 +1,6 @@
-# Contributing to HighSpeedRacer
+# Contributing to AtariRacer
 
-Thank you for your interest in contributing to HighSpeedRacer.
+Thank you for your interest in contributing to AtariRacer.
 
 This project was started by **VIDAKHOSHPEY22** as a personal learning experience and has grown significantly with the help of community contributors. 
 
@@ -32,7 +32,7 @@ This project was started by **VIDAKHOSHPEY22** as a personal learning experience
 
 When reporting a bug, please include:
 
-- Your operating system (e.g., Windows 11) and Python version (3.13)
+- Your operating system (e.g., Windows, ChromeOS, Linux, Other) and the Python version which is (3.13)
 - Steps to reproduce the issue
 - Screenshots, if applicable
 
@@ -44,10 +44,10 @@ When reporting a bug, please include:
 
 ## Recognition
 
-All contributors are listed in the README. Significant contributions are highlighted in release notes.
+All contributors are listed in the README. **Significant contributions** are highlighted.
 
 ---
 
-Thank you once again!
+Thank you!
 
 **VIDAKHOSHPEY22** & **TheM1ddleM1n**
