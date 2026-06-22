@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/github/v/release/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=ffd93d" alt="Latest Release" />
 </p>
 
-<h1 align="center">HIGH SPEED RACER</h1>
+<h1 align="center">ATARI RACER</h1>
 
 <h3 align="center">A fast-paced 2D endless racing game built with Python</h3>
 
@@ -13,7 +13,7 @@
 
 ## About the Project
 
-HIGH SPEED RACER is an exciting arcade-style racing game where you dodge traffic, collect coins, and set high scores. The game features multiple difficulty levels, car skins with unique speed bonuses, boost mechanics, and a combo multiplier system.
+ATARI RACER is an exciting arcade-style racing game where you dodge traffic, collect coins, and set high scores. The game features 3 difficulty levels, 8 car skins with unique speed bonuses, boost mechanics and a combo multiplier system.
 
 ---
 
@@ -51,9 +51,9 @@ python atari.py
 | Key | Action |
 |-----|--------|
 | ← → | Steer left / right |
-| SPACE | Activate boost (50 points) |
+| SPACE | Boost (50 points) |
 | P | Pause / Resume |
-| R | Restart game |
+| R | Restart |
 
 ---
 
@@ -62,7 +62,7 @@ python atari.py
 - Removed the police chase mechanic to keep the core dodge-and-collect loop tighter
 - Removed the Magnet power-up; Shield and Time Freeze remain
 - Removed screen shake on collisions for a calmer, steadier camera
-- Removed fog weather and the Speed Bump hazard to simplify the hazard set down to Barrier and Oil Slick
+- Removed fog weather, Cone and the Speed Bump hazard to simplify the hazard set down to Barrier and Oil Slick
 - Reduced the particle pool size to match the trimmed effect set
 - Corrected the README to no longer claim dynamic responsive resizing, since the window size is currently fixed
 - Updated `Checklist.md` to track these changes
