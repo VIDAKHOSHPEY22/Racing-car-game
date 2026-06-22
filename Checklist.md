@@ -3,6 +3,8 @@
 ## Open Issues
 
 - [ ] Web deployment (soon)
+- [ ] coin lane dedup
+- [ ] lane-stripe period mismatch (should be equal lengths)
 
 ## Completed — TheM1ddleM1n
 
