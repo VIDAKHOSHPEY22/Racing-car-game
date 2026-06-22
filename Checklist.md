@@ -36,6 +36,7 @@
 - [x] Removed fog weather and the Speed Bump hazard
 - [x] Reduced particle pool size from 300 to 150 to match trimmed effect set
 - [x] Corrected README "Responsive UI" claim, since window size is fixed at 800x600
+- [x] Removed Cone hazard because it duplicated Barrier gameplay
 
 ## Completed — VIDAKHOSHPEY22
 

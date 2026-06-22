@@ -62,7 +62,7 @@ python atari.py
 - Removed the police chase mechanic to keep the core dodge-and-collect loop tighter
 - Removed the Magnet power-up; Shield and Time Freeze remain
 - Removed screen shake on collisions for a calmer, steadier camera
-- Removed fog weather and the Speed Bump hazard to simplify the hazard set down to Cone, Barrier, and Oil Slick
+- Removed fog weather and the Speed Bump hazard to simplify the hazard set down to Barrier and Oil Slick
 - Reduced the particle pool size to match the trimmed effect set
 - Corrected the README to no longer claim dynamic responsive resizing, since the window size is currently fixed
 - Updated `Checklist.md` to track these changes

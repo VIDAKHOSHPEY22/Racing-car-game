@@ -356,18 +356,6 @@ class StaticObstacle:
         return pg.Rect(self.x, self.y, self.WIDTH, self.HEIGHT)
 
 
-class Cone(StaticObstacle):
-    WIDTH, HEIGHT = 18, 26
-    _surf = None
-
-    def _build_surf(self):
-        s  = pg.Surface((self.WIDTH, self.HEIGHT), pg.SRCALPHA)
-        cx = self.WIDTH // 2
-        pg.draw.polygon(s, ORANGE, [(cx, 0), (0, self.HEIGHT), (self.WIDTH, self.HEIGHT)])
-        pg.draw.rect(s, (255, 200, 100), (2, self.HEIGHT - 6, self.WIDTH - 4, 4))
-        return s
-
-
 class Barrier(StaticObstacle):
     WIDTH, HEIGHT = 60, 20
     _surf = None
@@ -1231,8 +1219,6 @@ class Game:
         roll            = random.random()
         if roll < 0.60:
             self.obs_cars.append(ObstacleCar(lane, spd))
-        elif roll < 0.78:
-            self.obs_misc.append(Cone(lc - Cone.WIDTH // 2, spd))
         elif roll < 0.92:
             self.obs_misc.append(Barrier(lc - Barrier.WIDTH // 2, spd))
         else:
