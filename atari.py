@@ -2,7 +2,7 @@ import pygame as pg
 import sys
 import random
 import math
-import os
+import os # is this needed?! it does not quote anything tho..
 from collections import namedtuple
 from bisect import bisect_left
 
@@ -1001,11 +1001,11 @@ class Game:
                     if self.score >= 50 and self.player.boost_timer <= 0:
                         self.score -= 50
                         self.player.apply_boost()
-                        self._set_fb("BOOST!", 0.8)
+                        self._set_fb("BOOSTING!", 0.8)
                         self._add_particles(self.player.x + Player.WIDTH // 2, self.player.y + Player.HEIGHT, 20, ORANGE)
                         self._play_sound("boost")
                     else:
-                        self._set_fb("NEED 50 PTS!", 0.7)
+                        self._set_fb("50 PTS NEEDED!", 0.7)
                 if ev.key == pg.K_p:
                     if self.state == "playing":
                         self.state = "paused"
@@ -1362,10 +1362,10 @@ class Game:
             shade = clamp(10 + int(25 * math.sin(y / 30 + elapsed)), 0, 255)
             pg.draw.line(self.screen, (shade, shade, min(shade + 10, 255)), (0, y), (WIDTH, y))
 
-        title = f_main.render("HIGH SPEED RACER", True, YELLOW)
+        title = f_main.render("ATARI RACER", True, YELLOW)
         tx    = WIDTH // 2 - title.get_width() // 2
         for offset in range(3):
-            glow = f_main.render("HIGH SPEED RACER", True, (100, 70 + offset * 20, 0))
+            glow = f_main.render("ATARI RACER", True, (100, 70 + offset * 20, 0))
             self.screen.blit(glow, (tx - offset, 38 - offset))
         self.screen.blit(title, (tx, 35))
         sub = f_tiny.render("EXTREME EDITION", True, ORANGE)
