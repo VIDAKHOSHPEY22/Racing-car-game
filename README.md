@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
-  <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=95e1d3" alt="Licence" />
-  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=a8e6cf" alt="Last Commit" />
-  <img src="https://img.shields.io/github/v/release/VIDAKHOSHPEY22/Racing-car-game?style=for-the-badge&color=ffd93d" alt="Latest Release" />
+  <img src="https://img.shields.io/github/stars/VIDAKHOSHPEY22/Atari-Racer?style=for-the-badge&logo=github&color=ff6b6b" alt="Stars" />
+  <img src="https://img.shields.io/github/license/VIDAKHOSHPEY22/Atari-Racer?style=for-the-badge&color=95e1d3" alt="Licence" />
+  <img src="https://img.shields.io/github/last-commit/VIDAKHOSHPEY22/Atari-Racer?style=for-the-badge&color=a8e6cf" alt="Last Commit" />
+  <img src="https://img.shields.io/github/v/release/VIDAKHOSHPEY22/Atari-Racer?style=for-the-badge&color=ffd93d" alt="Latest Release" />
 </p>
 
 <h1 align="center">ATARI RACER</h1>
@@ -20,8 +20,8 @@ ATARI RACER is an exciting arcade-style racing game where you dodge traffic, col
 ## Quick Start
 
 ```bash
-git clone https://github.com/VIDAKHOSHPEY22/Racing-car-game.git
-cd Racing-car-game
+git clone https://github.com/VIDAKHOSHPEY22/Atari-Racer.git
+cd Atari-Racer
 pip install -r requirements.txt
 python atari.py
 ```
