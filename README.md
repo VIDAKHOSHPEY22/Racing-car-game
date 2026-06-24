@@ -66,6 +66,7 @@ python atari.py
 - Reduced the particle pool size to match the trimmed effect set
 - Corrected the README to no longer claim dynamic responsive resizing, since the window size is currently fixed
 - Updated `Checklist.md` to track these changes
+- Renamed from racing-car-game to Atari-Racer for clarity
 
 ## Previously in V5.5
 
