@@ -36,7 +36,7 @@ Closes #
 
 - [ ] My code follows the existing style of the project
 - [ ] I have not introduced any unnecessary dependencies
-- [ ] I have updated `Checklist.md` if this closes an open TODO
+- [ ] I have updated `Checklist.md` if this closes an open issue
 - [ ] I have added or updated comments where the code is non-obvious
 - [ ] I have read and agree to the [MIT License](../LICENCE) terms
 
