@@ -6,7 +6,7 @@ This project was started by **VIDAKHOSHPEY22** as a personal learning experience
 
 **TheM1ddleM1n** joined as a co-maintainer, bringing experience from earlier Python projects and a focus on helping new contributors get involved.
 
-## How to Contribute via Pull Request
+## Proposing changes
 
 1. Fork this repository
 2. Create a feature branch: `git checkout -b feature/your-feature-name`
