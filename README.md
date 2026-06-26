@@ -32,7 +32,7 @@ python atari.py
 
 | Feature | Description |
 |---------|-------------|
-| Car Skins | 8 different skins with unique speed bonuses |
+| Car Skins | 15 different skins with unique speed bonuses |
 | Boost System | Press SPACE to activate speed boost (costs 50 points) |
 | Combo Multiplier | Chain obstacles and coins for multipliers up to x4 |
 | Sound Effects | Procedurally generated audio for coins, boost, hits, and more |
