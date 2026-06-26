@@ -139,17 +139,16 @@ pyinstaller --onefile --windowed atari.py
 ---
 
 ## Main Contributors
-
 <table align="center">
   <tr>
     <td align="center">
       <a href="https://github.com/TheM1ddleM1n">
         <img src="https://github.com/TheM1ddleM1n.png?size=80" width="70" height="70" style="border-radius:50%;" />
         <br />
-        <b>TheM1ddleM1n</b>
+        <b>👑 TheM1ddleM1n</b>
       </a>
       <br />
-      <small><b>Core Maintainer</b></small>
+      <img src="https://img.shields.io/badge/-Core%20Maintainer-d4af37?style=flat-square" /><br />
     </td>
     <td align="center">
       <a href="https://github.com/YALDAKHOSHPEY">
