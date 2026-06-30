@@ -6,8 +6,8 @@ body:
   - type: input
     attributes:
       label: Which file?
-      description: The name of the file that has the bug.
-      placeholder: atari.py
+      value: "atari.py"
+      disabled: true
     validations:
       required: true
   - type: textarea
@@ -42,9 +42,18 @@ body:
       description: Paste any error messages from your terminal.
   - type: input
     attributes:
-      label: OS/Python Version
-      description: Your OS and Python version (run `python --version`)
-      placeholder: ie. Windows 11, Python 3.13
+      label: Operating System
+      description: What OS are you running?
+      placeholder: e.g. Windows 11, MacOS Sequoia, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Python Version
+      value: "3.13"
+      disabled: true
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: Additional Information
