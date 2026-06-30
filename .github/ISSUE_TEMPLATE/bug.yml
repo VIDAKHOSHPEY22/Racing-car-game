@@ -1,16 +1,16 @@
 name: Bug Report
 description: Something is not working.
-labels: "bug"
-assignees: "TheM1ddleM1n"
+labels: ["bug"]
+assignees: ["TheM1ddleM1n"]
 body:
-  - type: input
+  - type: markdown
     attributes:
-      label: Which file?
-      value: "atari.py"
-      disabled: true
-    validations:
-      required: true
+      value: |
+        ### 📌 Project Environment Note
+        * **Target File:** `atari.py` (This template only applies to bugs found in `atari.py`)
+        * **Required Python Version:** `3.13`
   - type: textarea
+    id: steps
     attributes:
       label: Steps to Reproduce
       description: How do we make the bug happen?
@@ -21,6 +21,7 @@ body:
     validations:
       required: true
   - type: textarea
+    id: expected
     attributes:
       label: Expected Behavior
       description: What should have happened?
@@ -29,6 +30,7 @@ body:
     validations:
       required: true
   - type: textarea
+    id: actual
     attributes:
       label: Actual Behavior
       description: Tell me what happened?
@@ -37,24 +39,20 @@ body:
     validations:
       required: true
   - type: textarea
+    id: errors
     attributes:
       label: Error Output
       description: Paste any error messages from your terminal.
   - type: input
+    id: os
     attributes:
       label: Operating System
       description: What OS are you running?
       placeholder: e.g. Windows 11, MacOS Sequoia, Ubuntu 24.04
     validations:
       required: true
-  - type: input
-    attributes:
-      label: Python Version
-      value: "3.13"
-      disabled: true
-    validations:
-      required: true
   - type: textarea
+    id: additional-info
     attributes:
       label: Additional Information
       description: "Anything else? Pro tip: 'please fix this bug' will NOT help."
